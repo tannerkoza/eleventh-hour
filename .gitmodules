@@ -5,3 +5,6 @@
 [submodule "libs/navtools.py"]
 	path = libs/navtools.py
 	url = git@github.com:tannerkoza/navtools.py.git
+[submodule "libs/snappy"]
+	path = libs/snappy
+	url = git@github.com:tannerkoza/snappy.git
