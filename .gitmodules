@@ -2,3 +2,6 @@
 	path = libs/navlab-dpe
 	url = git@github.com:Stanford-NavLab/NavLab-DPE-SDR.git
 	branch = master
+[submodule "libs/navtools.py"]
+	path = libs/navtools.py
+	url = git@github.com:tannerkoza/navtools.py.git
