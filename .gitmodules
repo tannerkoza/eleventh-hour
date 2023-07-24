@@ -1,0 +1,4 @@
+[submodule "libs/navlab-dpe"]
+	path = libs/navlab-dpe
+	url = git@github.com:Stanford-NavLab/NavLab-DPE-SDR.git
+	branch = master
