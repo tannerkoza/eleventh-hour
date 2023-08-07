@@ -1,0 +1,316 @@
+%%% This is an example file for the Auburn University style options
+%%%       aums.sty (Masters Thesis)
+%%%       auphd.sty (Ph.D. Dissertation)
+%%%       auhonors.sty (Honors Scholar)
+
+%%%To use it, please edit the necessary options, title, author, date, year, keywords, advisor, professor, etc. 
+
+\documentclass[12pt]{report}
+%\usepackage{aums}       % For Master's papers
+\usepackage{auphd}     % For Ph.D.
+%\usepackage{auhonors}  % For honors college
+\usepackage{ulem}       % underlining on style-page; see \normalem below
+\usepackage{url}
+\usepackage{tikz}
+\usepackage{pgf}
+\usepackage{tocloft}     % Use tocloft to introduce single spacing on long chapter name
+\setlength\cftparskip{-2pt}
+\usepackage[nottoc,notlof,notlot]{tocbibind} 
+\renewcommand\bibname{References}
+\renewcommand\cftchapafterpnum{\vskip\baselineskip}  
+\renewcommand\cftsecafterpnum{\vskip\baselineskip \normalfont}
+\renewcommand\cftsubsecafterpnum{\vskip\baselineskip \normalfont}
+\renewcommand\cftsubsubsecafterpnum{\vskip\baselineskip \normalsize}
+\renewcommand\cftfigafterpnum{\vskip\baselineskip}
+\renewcommand\cfttabafterpnum{\vskip\baselineskip}
+\renewcommand{\cftpartleader}{\cftdotfill{\cftdotsep}} % for parts
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}} % for chapters
+\usepackage{times}
+\usepackage[a4paper,left=1in,right=1in,top=1.15in,bottom=1in]{geometry}
+\usepackage{etoolbox}% http://ctan.org/pkg/etoolbox
+\usepackage{titlesec}
+\titleformat{\chapter}[display] %[display] puts the title chapter on a separate line
+  {\singlespace\center}{\chaptertitlename\ \thechapter}{12pt}{\center} % Defines the Chapter title style and size
+\titleformat*{\section} {\normalfont\fontsize{12}{12}}  % Added this line to describe section title,numbering and font styles
+\titleformat*{\subsection} {\normalfont\fontsize{12}{12}}% Added this line to describe subsection title,numbering and font styles
+\titleformat*{\subsubsection} {\normalfont\fontsize{12}{12}}% Added this line to describe subbsection title,numbering and font styles
+
+%%%%%Format rules: Normal margins are 1 in. If you need to print with 1.5in margins, uncomment the line below
+%\oddsidemargin0.5in \textwidth6in
+
+%% If you do not need a List of Abbreviations, then comment out the lines below and the \printnomenclature line.
+%%for List of Abbreviations information:  (see http://www.mackichan.com/TECHTALK/509.htm  )
+\usepackage[intoc]{nomencl}
+\renewcommand{\nomname}{List of Abbreviations}   	       
+\makenomenclature 
+%% don't forget to run:   makeindex ausample.nlo -s nomencl.ist -o ausample.nls
+%% Also, if 
+
+
+
+
+% May want theorems numbered by chapter
+\newtheorem{theorem}{  \normalfont Theorem} [chapter]
+
+% Put the title, author, and date in. 
+\title{Sample Thesis Title Goes Here}
+\author{Christopher Wilson} 
+\date{May 10, 2010} %date of graduation
+\copyrightyear{2010} %copyright year
+
+\keywords{keyword1, keyword2, keyword3}
+
+% Put the Thesis Adviser here. 
+\adviser{Thaddeus Roppel}
+
+
+% Put the committee here (including the adviser), one \professor for each. 
+% The advisor must be first, and the dean of the graduate school must be last.
+\professor{Thaddeus Roppel, Chair, Associate Professor of Electrical and Computer Engineering}
+
+\professor{Prathima Agrawal, Ginn Distinguished Professor of Electrical and Computer Engineering}
+
+\professor{John Hung, Professor of Electrical and Computer Engineering}
+
+\begin{document}
+
+\begin{romanpages}      % roman-numbered pages 
+
+\TitlePage 
+
+\begin{abstract} 
+Place the text of the abstract here. Headings come automatically.
+\end{abstract}
+
+\begin{acknowledgments}
+Put text of the acknowledgments here.
+\end{acknowledgments}
+
+\begin{singlespace}
+
+\begin{center} 
+\renewcommand{\cftchapfont}{}
+\renewcommand{\cftchappagefont}{}
+\renewcommand{\cfttoctitlefont}{\normalsize}% Remove \bfseries from ToC title
+\renewcommand{\cftsecfont }{\normalsize}% Remove \bfseries from section titles in ToC
+\renewcommand{\cftsecpagefont}{\normalsize}% Remove \bfseries from section titles' page in ToC
+\tableofcontents 
+\newpage
+\renewcommand{\cftchapfont}{}
+\renewcommand{\cftchappagefont}{}
+\renewcommand{\cftloftitlefont}{\normalsize}% Remove \bfseries from lof title
+\renewcommand{\cftsecfont}{\normalsize}% Remove \bfseries from section titles in lof
+\renewcommand{\cftsecpagefont}{\normalsize}% Remove \bfseries from section titles' page in lof
+\listoffigures
+\newpage
+\renewcommand{\cftchapfont}{}
+\renewcommand{\cftchappagefont}{}
+\renewcommand{\cftlottitlefont}{\normalsize}% Remove \bfseries from lot title
+\renewcommand{\cftsecfont}{\normalsize}% Remove \bfseries from section titles in lof
+\renewcommand{\cftsecpagefont}{\normalsize}% Remove \bfseries from section titles' page in lof
+\listoftables
+\end{center}
+\end{singlespace}
+
+\printnomenclature[0.5in] %used for the List of Abbreviations
+\end{romanpages}        % All done with roman-numbered pages
+
+
+\normalem       % Make italics the default for \em
+
+ \chapter { This is the Title of the First Chapter-This is a super long title of a Chapter, testing the line wrap and move over to next line.}  % Use \\ for long titles  
+\vspace{-1cm} %Use when chapter name is long -reduce distance between title and chapter text
+ This is a sample document for the Auburn \nomenclature{Auburn}{Auburn University} \LaTeX{} style-files known
+as {\tt aums} (for Master's papers) and {\tt auphd} (for Ph.D.'s).
+The appendix contains some of the history of this project, including
+contact information for the authors. 
+
+Site administrators should upgrade to \LaTeX2e; however, the style files
+should work with the older \LaTeX.  The style files should be available
+on mallard.  The current release is available by anonymous ftp to
+ftp.dms.auburn.edu in the directory aums (on-campus computers may
+also retrieve these from \url{http://www.dms.auburn.edu/manuals}).
+Most users will need either Lamport's book \cite{lamport} or Hahn's book
+\cite{hahn}.
+
+If you do not need the List of Abbreviations\nomenclature{LoA}{List of Abbreviations}, comment the nomencl package and associated nomenclature commands. 
+\begin{theorem}  \normalfont This is an example theorem.
+\end{theorem}
+
+\section { \normalfont This is an example of a section heading}
+
+This is some text which follows the section heading. You can find the data in Table \ref{tab:results}.
+\begin{figure}
+  \begin{center}
+  \setlength{\unitlength}{.7in}
+    \begin{picture}(4.2,1)
+      \put(0.2,.5){\circle{0.1}}
+      \put(0.9,.5){\circle{0.2}}
+      \put(1.6,.5){\circle{0.3}}
+      \put(2.3,.5){\circle{0.4}}
+      \put(3.1,.5){\circle{0.5}}
+      \put(3.8,.5){\circle{0.6}}
+    \end{picture}
+  \end{center}
+ \caption{Hollow circles}\label{HollowCircles}
+\end{figure}
+
+\begin{figure}
+\centering
+  \begin{tikzpicture}
+\filldraw [double distance=0.20mm,very thick, fill=white, draw=black] (0cm,0cm) rectangle (5cm, 2.5cm);
+   \fill (2.5in,0in) circle (3pt);
+\end{tikzpicture}
+\caption{Some TikZ picture.}
+\end{figure}
+
+\begin{table}[htb]
+\begin{center}
+\begin{tabular}{|c | c | c | c|}
+\hline
+\multicolumn{1}{|c|}{~} & \multicolumn{3}{c|}{Multicolumn Heading 1}\\
+Heading 1 & \multicolumn{1}{|c}{Heading 2} & \multicolumn{1}{c}{Heading 3} & \multicolumn{1}{c|}{Heading 4} \\
+\hline
+1 & 19, 20 (19.5)& NA & NA \\
+\hline
+3 & $\infty$* ($\infty$)& 18, 15 (16.5)& 9, 9 (9)\\
+\hline
+5 & 23, 18 (20.5) 
+& 16 (16)
+& 7, 7, 8 (7.33)\\
+\hline
+\multicolumn{4}{|c|}{*Some random comment for the whole table.}\\
+\hline
+\end{tabular}
+\end{center}
+\caption{Some Table of data}
+\label{tab:results}
+\end{table}
+
+
+\subsection{ \normalfont This is a subsection heading}
+
+Text after the subsection. And we have a figure, Figure \ref{HollowCircles}.
+
+\chapter{New Chapter}
+\begin{theorem}
+Another theorem.
+\end{theorem}
+
+\begin{figure}
+  \begin{center}
+  \setlength{\unitlength}{.7in}
+    \begin{picture}(4.2,1)
+      \put(0.2,.5){\circle{0.1}}
+      \put(0.9,.5){\circle{0.2}}
+      \put(1.6,.5){\circle{0.3}}
+      \put(2.3,.5){\circle{0.4}}
+      \put(3.1,.5){\circle{0.5}}
+      \put(3.8,.5){\circle{0.6}}
+    \end{picture}
+  \end{center}
+ \caption{Hollow circles}\label{HollowCircles}
+\end{figure}
+
+%%%%%%%%Two options for having a bibliography. If you use a separate file or multiple files:
+%\bibliography{./robotics,./imageprocessing,./thesis}
+%%%%% where the files are robotics.bib, imageprocessing.bib and/or thesis.bib. 
+
+%Or you can include the bibliography entries directly:
+
+\begin{thebibliography}{99}
+\newcommand{\AmS}{$${\protect\the\textfont2 A}\kern-.1667em\lower
+         .5ex\hbox{\protect\the\textfont2 M}\kern
+         -.125em{\protect\the\textfont2 S}}
+
+\bibitem{hahn} Jane Hahn, ``\LaTeX{} For Everyone,'' Personal TeX Inc., 
+  12 Madrona Street, Mill Valley, California.
+
+\bibitem{goossens} Frank Mittelbach and Michel Goossens (with
+Johannes Braams, David Carlisle, and Chris Rowley),
+  ``The \LaTeX{} Companion,'' second edition, Addison-Wesley, 2004.
+
+\bibitem{GRM:LaTeXGraphicsCompanion} 
+Michal Goossens, Sabastian Rahtz, and Frank Mittelbach, ``The \LaTeX{} 
+Graphics Companion,'' Addison-Wesley, 1997.
+
+\bibitem{Gra:MathIntoLaTeX} George Gr\"atzer, ``Math into \LaTeX: An 
+introduction to \LaTeX{} and \mbox{\AmS-\LaTeX},'' Birkh\"auser, 1996.
+
+\bibitem{hoenig} Alan Hoenig, ``\TeX{} Unbound: \LaTeX{} and \TeX{} strategies
+for Fonts, Graphics, and More,'' Oxford University Press, 1997. Includes
+practical advice and numerous exammples for a wide range of topics,
+includeing virtual fonts, graphics, and resources for the internet and
+multimedia.
+
+\bibitem{KH} Helmut Kopka and Patrick W. Daly, ``A Guide to \LaTeXe:
+  Document Preparation for Beginners and Advanced Users,'' 2nd ed.,
+  Addison-Wesley, 1995.
+
+\bibitem{lamport} Leslie Lamport, ``\LaTeX: A Document Preparation
+  System,'' 2nd ed., Addison-Wesley, 1994.
+
+\bibitem{walsh} Norman Walsh, ``Making \TeX{} Work,'' O'Reilly and
+  Associates, 1994.
+
+\end{thebibliography}
+
+
+
+\appendix
+\chapter*{Appendices\addcontentsline{toc}{chapter}{Appendices}}
+
+\chapter{Notes on the style-file project}
+
+\begin{singlespace}
+These style-files have been modified by Christopher Wilson to support the new Electronic Thesis and Dissertation process. The following was written before the ETD guidelines update on Fall 2009. Changes to the original appendix have been shown in italics. 
+
+These style-files for use with \LaTeX{} {\it were} maintained by Darrel
+Hankerson\footnote{Mathematics and Statistics, 221 Parker Hall,
+844-3641, {\tt hankedr@auburn.edu}} and Ed
+Slaminka\footnote{Mathematics and Statistics, 218 Parker,
+{\tt slamiee@auburn.edu}}.
+
+In 1990, department heads and other representatives met with Dean Doorenbos
+and Judy Bush-Crofton (then responsible for manuscript approval). This
+meeting was prompted by a memorandum\footnote{Originally, the memorandum
+was presented to Professor Larry Wit. A copy is available on request.} from
+members of the mathematics departments concerning the {\em Thesis and
+Dissertation Guide\/} and the approval process. There was wide agreement
+among the participants (including Dean Doorenbos) to support the basic
+recommendations outlined in the memorandum. The revised {\em Guide\/}
+reflected some (but not all) of the agreements of the meeting.
+
+Ms Bush-Crofton was supportive of the plan to obtain ``official approval''
+of these style files.\footnote{Followup memoranda gave a definition of
+``official approval.'' Copies will be sent on request.}  Unfortunately, Ms
+Bush-Crofton left the Graduate School before the process was completed. In
+1994, we were revisiting some of the same problems which were
+resolved at the 1990 meeting.
+
+In Summer 1994, I sent several memoranda to Ms Ilga Trend of the Graduate
+School, reminding her of the agreements made at the 1990 meeting.
+Professors A. Scottedward Hodel and Stan Reeves provided additional
+support.  In short, it is essential that the Graduate School honor its
+commitments of the 1990 meeting. It should be emphasized that Dean
+Doorenbos is to thank for the success of that meeting.
+
+Maintaining these \LaTeX{} files has been more work than expected, in
+part due to continuing changes in requirement by the graduate school.
+The Graduate School occasionally has complete memory loss about the
+agreements of the 1990 meeting. If the Graduate School rejects your
+manuscript based on items controlled by the style-files, ask
+your advisor to contact the Graduate school (and copy to me) to urge
+cooperation.
+
+Finally, there have been several requests for additions to the package
+(mostly formatting changes for figures, etc.). While such changes are not
+really part of the thesis-style package, it could be beneficial to collect
+these options and distribute with the package (making it easier on the next
+student).  I'm especially interested in changes needed by various
+departments.
+
+\end{singlespace}
+
+\end{document}
+
