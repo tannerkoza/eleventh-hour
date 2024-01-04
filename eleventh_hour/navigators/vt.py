@@ -6,6 +6,7 @@ import scipy.linalg as linalg
 from numba import njit
 from dataclasses import dataclass
 from navtools.constants import SPEED_OF_LIGHT
+from navsim.error_models.clock import NavigationClock
 
 
 @njit(cache=True)
@@ -54,36 +55,39 @@ class VDFLLCorrelators:
 
 
 class VDFLL:
-    def __init__(self, configuration: VDFLLConfiguration) -> None:
+    def __init__(self, conf: VDFLLConfiguration) -> None:
         # tuning
-        self.process_noise_sigma = configuration.process_noise_sigma
-        self.tap_spacing = configuration.tap_spacing
+        self.process_noise_sigma = conf.process_noise_sigma
+        self.tap_spacing = conf.tap_spacing
 
         # initial states
-        self.rx_states = np.array(
+        self.rx_state = np.array(
             [
-                configuration.rx_pos[0],
-                configuration.rx_vel[0],
-                configuration.rx_pos[1],
-                configuration.rx_vel[1],
-                configuration.rx_pos[2],
-                configuration.rx_vel[2],
-                configuration.rx_clock_bias,
-                configuration.rx_clock_drift,
+                conf.rx_pos[0],
+                conf.rx_vel[0],
+                conf.rx_pos[1],
+                conf.rx_vel[1],
+                conf.rx_pos[2],
+                conf.rx_vel[2],
+                conf.rx_clock_bias,
+                conf.rx_clock_drift,
             ]
         )
-        self.cn0 = configuration.cn0
+        self.cn0 = conf.cn0
 
         # properties
-        self.rx_clock_params = ns.get_clock_allan_variance_values(
-            clock_name=configuration.rx_clock_type
-        )
-        self.__signal_properties = configuration.signal_properties
+        if conf.rx_clock_type is not None:
+            self.rx_clock_params = ns.get_clock_allan_variance_values(
+                clock_name=conf.rx_clock_type
+            )
+        else:
+            self.rx_clock_params = NavigationClock(h0=0.0, h1=0.0, h2=0.0)
+        self.__signal_properties = conf.signal_properties
 
         # state
-        self.P = np.eye(self.rx_states.size)
-        self.is_covariance_not_ss = True
-        self.correlator_buff_size = configuration.correlator_buff_size
+        self.P = np.eye(self.rx_state.size)
+        self.__is_covariance_not_ss = True
+        self.correlator_buff_size = conf.correlator_buff_size
         self.nloop_closures = 0
 
         # logging
@@ -126,17 +130,17 @@ class VDFLL:
         self.__compute_A()
         self.__compute_Q()
 
-        self.rx_states = self.A @ self.rx_states
+        self.rx_state = self.A @ self.rx_state
         self.P = self.A @ self.P @ self.A.T + self.Q
 
     def loop_closure(self):
-        I = np.eye(self.rx_states.size)
+        I = np.eye(self.rx_state.size)
         self.__compute_H()
         self.__compute_R()
 
-        if self.is_covariance_not_ss:
-            self.P = self.__compute_ss_covariance()
-            self.is_covariance_not_ss = False
+        if self.__is_covariance_not_ss:
+            self.__compute_ss_covariance()
+            self.__is_covariance_not_ss = False
 
         code_error, ferror = self.__discriminate()
         prange_error = code_error * self.chip_length
@@ -144,11 +148,11 @@ class VDFLL:
         z = np.append(prange_error, prange_rate_error)
 
         K = self.P @ self.H.T @ np.linalg.inv(self.H @ self.P @ self.H.T + self.R)
-        self.rx_states += K @ z
+        self.rx_state += K @ z
         self.P = (I - K @ self.H) @ self.P @ (I - K @ self.H).T + K @ self.R @ K.T
 
         # logging
-        self.__rx_states_log.append(self.rx_states)
+        self.__rx_states_log.append(self.rx_state)
         self.__code_error_log.append(code_error)
         self.__ferror_log.append(ferror)
         self.__prange_error_log.append(prange_error)
@@ -171,10 +175,10 @@ class VDFLL:
         self.sub_qp = prompt.subquadrature
 
     def predict_observables(self, emitter_states: dict):
-        rx_pos = self.rx_states[:6:2]
-        rx_vel = self.rx_states[1:7:2]
-        rx_clock_bias = self.rx_states[6]
-        rx_clock_drift = self.rx_states[7]
+        rx_pos = self.rx_state[:6:2]
+        rx_vel = self.rx_state[1:7:2]
+        rx_clock_bias = self.rx_state[6]
+        rx_clock_drift = self.rx_state[7]
 
         constellations = []
         ranges = []
@@ -198,8 +202,11 @@ class VDFLL:
         pranges = np.array(ranges) + rx_clock_bias
         prange_rates = np.array(range_rates) + rx_clock_drift
 
+        self.nchannels = len(constellations)
         self.unit_vectors = np.array(unit_vectors).T
-        self.__update_cycle_lengths(prange_rates=prange_rates)
+        self.__update_cycle_lengths(
+            constellations=constellations, prange_rates=prange_rates
+        )
 
         return pranges, prange_rates
 
@@ -218,8 +225,8 @@ class VDFLL:
         )
 
         # clock
-        sf = self.rx_clock_parameters.h0 / 2
-        sg = self.rx_clock_parameters.h2 * 2 * np.pi**2
+        sf = self.rx_clock_params.h0 / 2
+        sg = self.rx_clock_params.h2 * 2 * np.pi**2
 
         clock_Q = SPEED_OF_LIGHT * np.array(
             [
@@ -235,8 +242,8 @@ class VDFLL:
         uy = self.unit_vectors[1]
         uz = self.unit_vectors[2]
 
-        range_states_H = np.zeros((self.rx_states.size, self.nchannels))
-        rate_states_H = np.zeros((self.rx_states.size, self.nchannels))
+        range_states_H = np.zeros((self.rx_state.size, self.nchannels))
+        rate_states_H = np.zeros((self.rx_state.size, self.nchannels))
 
         range_states_H[0] = ux
         range_states_H[2] = uy
@@ -274,10 +281,10 @@ class VDFLL:
         split_ip = np.array_split(self.sub_ip, 2)
         split_qp = np.array_split(self.sub_qp, 2)
 
-        first_ip = np.mean(split_ip[0])
-        first_qp = np.mean(split_qp[0])
-        last_ip = np.mean(split_ip[1])
-        last_qp = np.mean(split_qp[1])
+        first_ip = np.mean(split_ip[0], axis=0)
+        first_qp = np.mean(split_qp[0], axis=0)
+        last_ip = np.mean(split_ip[1], axis=0)
+        last_qp = np.mean(split_qp[1], axis=0)
 
         # frequency discriminator
         cross = first_ip * last_qp - last_ip * first_qp
@@ -285,7 +292,17 @@ class VDFLL:
         ferror = np.arctan2(cross, dot) / (np.pi * self.T)
 
         # logging
-        self.__correlator_log.append()
+        correlators = VDFLLCorrelators(
+            ip=self.ip,
+            qp=self.qp,
+            ie=self.ie,
+            qe=self.qe,
+            il=self.il,
+            ql=self.ql,
+            sub_ip=self.sub_ip,
+            sub_qp=self.sub_qp,
+        )
+        self.__correlator_log.append(correlators)
 
         return code_error, ferror
 
@@ -303,8 +320,6 @@ class VDFLL:
             carrier_doppler = -prange_rate * (fcarrier / SPEED_OF_LIGHT)
             code_doppler = carrier_doppler * fratio
 
-            # chip_length.append(SPEED_OF_LIGHT / fchip)
-            # wavelength.append(SPEED_OF_LIGHT / fcarrier)
             chip_length.append(SPEED_OF_LIGHT / (fchip + code_doppler))
             wavelength.append(SPEED_OF_LIGHT / (fcarrier + carrier_doppler))
 
