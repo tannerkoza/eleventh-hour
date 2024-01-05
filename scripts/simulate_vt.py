@@ -1,6 +1,7 @@
 import numpy as np
 import navsim as ns
 import pymap3d as pm
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
@@ -8,17 +9,17 @@ from pathlib import Path
 from eleventh_hour.trajectories import prepare_trajectories
 from eleventh_hour.navigators.vt import VDFLL, VDFLLConfiguration
 
-# user-defined parameters
-IS_TRAJECTORY = True
-IS_EMITTER_TYPE_TRUTH = False
-IS_TQDM_DISABLED = False
+# sim parameters
+TRAJECTORY = "road_finland_sdx_01_onego"
+IS_STATIC = False
+IS_EMITTER_TYPE_TRUTH = True
+IS_PLOTTED = True
 
+# vdfll parameters
 PROCESS_NOISE_SIGMA = 20
 CORRELATOR_BUFF_SIZE = 20
 TAP_SPACING = 0.5
 NSUBCORRELATORS = [4, 0, 0]
-TRAJECTORY = "daytona_500_sdx_1s_loop"
-RX_POS = np.array([423756, -5361363, 3417705])
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
@@ -27,29 +28,36 @@ DATA_PATH = PROJECT_PATH / "data"
 TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
 
 
-def simulate():
+def setup_simulation():
     # sim setup
     conf = ns.get_configuration(configuration_path=CONFIG_PATH)
 
-    if IS_TRAJECTORY:
-        rx_pos, rx_vel = prepare_trajectories(
-            file_path=TRAJECTORY_PATH.with_suffix(".csv"), fsim=conf.time.fsim
-        )
+    rx_pos, rx_vel = prepare_trajectories(
+        file_path=TRAJECTORY_PATH.with_suffix(".csv"), fsim=conf.time.fsim
+    )
 
-        ecef0 = rx_pos[0]
-        lla0 = pm.ecef2geodetic(x=ecef0[0], y=ecef0[1], z=ecef0[2])
-    else:
-        rx_pos = RX_POS
-        rx_vel = np.zeros_like(RX_POS)
-        lla0 = pm.ecef2geodetic(x=rx_pos[0], y=rx_pos[1], z=rx_pos[2])
+    if IS_STATIC:
+        rx_pos = rx_pos[0]
+        rx_vel = np.zeros_like(rx_pos)
 
-    sim = ns.CorrelatorSimulation(configuration=conf)
-    (
-        sim_emitter_states,
-        sim_observables,
-        sim_rx_states,
-        signal_properties,
-    ) = simulate_measurements(conf=conf, rx_pos=rx_pos, rx_vel=rx_vel)
+    meas_sim = generate_truth(conf=conf, rx_pos=rx_pos, rx_vel=rx_vel)
+    corr_sim = ns.CorrelatorSimulation(configuration=conf)
+
+    return conf, meas_sim, corr_sim
+
+
+def simulate(
+    conf: ns.SimulationConfiguration,
+    meas_sim: ns.MeasurementSimulation,
+    corr_sim: ns.CorrelatorSimulation,
+):
+    # measurement simulation
+    meas_sim.simulate()
+
+    sim_emitter_states = meas_sim.emitter_states
+    sim_observables = meas_sim.observables
+    sim_rx_states = meas_sim.rx_states
+    signal_properties = meas_sim.signal_properties
 
     if IS_EMITTER_TYPE_TRUTH:
         emitter_states = sim_emitter_states.truth
@@ -84,20 +92,19 @@ def simulate():
         enumerate(sim_observables),
         total=len(sim_observables),
         desc="[eleventh-hour] simulating correlators",
-        disable=IS_TQDM_DISABLED,
     ):
         vdfll.time_update(T=1 / conf.time.fsim)
         est_pranges, est_prange_rates = vdfll.predict_observables(
             emitter_states=emitter_states[epoch]
         )
 
-        sim.compute_errors(
+        corr_sim.compute_errors(
             observables=observables,
             est_pranges=est_pranges,
             est_prange_rates=est_prange_rates,
         )
         correlators = [
-            sim.correlate(tap_spacing=tap_spacing, nsubcorrelators=nsubcorrelators)
+            corr_sim.correlate(tap_spacing=tap_spacing, nsubcorrelators=nsubcorrelators)
             for tap_spacing, nsubcorrelators in zip(tap_spacings, NSUBCORRELATORS)
         ]
 
@@ -108,28 +115,28 @@ def simulate():
         vdfll.loop_closure()
 
     # plot
-    plot(truth_states=sim_rx_states, vdfll=vdfll, lla0=lla0)
+    if IS_PLOTTED:
+        ecef0 = sim_rx_states.pos[0]
+        lla0 = pm.ecef2geodetic(x=ecef0[0], y=ecef0[1], z=ecef0[2])
+        plot(truth_states=sim_rx_states, vdfll=vdfll, lla0=lla0)
+
+    return sim_rx_states, vdfll
 
 
-def simulate_measurements(
-    conf: ns.SimulationConfiguration,
-    rx_pos: np.ndarray,
-    rx_vel: np.ndarray = None,
+def generate_truth(
+    conf: ns.SimulationConfiguration, rx_pos: np.ndarray, rx_vel: np.ndarray = None
 ):
     meas_sim = ns.get_signal_simulation(
         simulation_type="measurement", configuration=conf
     )
-    meas_sim.simulate(rx_pos=rx_pos, rx_vel=rx_vel)
+    meas_sim.generate_truth(rx_pos=rx_pos, rx_vel=rx_vel)
 
-    return (
-        meas_sim.emitter_states,
-        meas_sim.observables,
-        meas_sim.rx_states,
-        meas_sim.signal_properties,
-    )
+    return meas_sim
 
 
 def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
+    sns.set_context("poster")
+
     truth_pos = np.array(
         pm.ecef2enu(
             x=truth_states.pos[:, 0],
@@ -177,6 +184,11 @@ def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
     cb_error = truth_states.clock_bias - vdfll_cb
     cd_error = truth_states.clock_drift - vdfll_cd
 
+    ip = vdfll.pad_log(log=[epoch.ip for epoch in vdfll.correlators])
+    qp = vdfll.pad_log(log=[epoch.qp for epoch in vdfll.correlators])
+    ie = vdfll.pad_log(log=[epoch.ie for epoch in vdfll.correlators])
+    il = vdfll.pad_log(log=[epoch.il for epoch in vdfll.correlators])
+
     plt.figure()
     plt.title("Trajectory")
     plt.plot(truth_pos[0], truth_pos[1], label="truth", marker="*")
@@ -184,6 +196,14 @@ def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
     plt.xlabel("East [m]")
     plt.ylabel("North [m]")
     plt.legend()
+
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    fig.supxlabel("Time [s]")
+    fig.suptitle("Velocity: East, North, Up")
+    for index, ax in enumerate(axes):
+        ax.plot(truth_states.time, truth_vel[index], label="truth")
+        ax.plot(truth_states.time, vdfll_vel[index], label="vdfll")
+        ax.set_ylabel("Velocity [m/s]")
 
     plt.figure()
     plt.title("Position Error [m]")
@@ -223,8 +243,17 @@ def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
     plt.xlabel("Time [s]")
     plt.ylabel("Error [m/s]")
 
+    plt.figure()
+    plt.title("Prompt Correlator Phasor")
+    plt.plot(ip, qp, ".")
+    plt.xlabel("Inphase Power")
+    plt.ylabel("Quadrature Power")
+    ax = plt.gca()
+    ax.axis("equal")
+
     plt.show()
 
 
 if __name__ == "__main__":
-    simulate()
+    conf, meas_sim, corr_sim = setup_simulation()
+    simulate(conf=conf, meas_sim=meas_sim, corr_sim=corr_sim)

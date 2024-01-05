@@ -105,25 +105,25 @@ class VDFLL:
 
     @property
     def code_errors(self):
-        code_errors = self.__pad_log(log=self.__code_error_log)
+        code_errors = self.pad_log(log=self.__code_error_log)
 
         return code_errors
 
     @property
     def ferrors(self):
-        ferrors = self.__pad_log(log=self.__ferror_log)
+        ferrors = self.pad_log(log=self.__ferror_log)
 
         return ferrors
 
     @property
     def prange_errors(self):
-        prange_errors = self.__pad_log(log=self.__prange_error_log)
+        prange_errors = self.pad_log(log=self.__prange_error_log)
 
         return prange_errors
 
     @property
     def prange_rate_errors(self):
-        prange_rate_errors = self.__pad_log(log=self.__prange_rate_error_log)
+        prange_rate_errors = self.pad_log(log=self.__prange_rate_error_log)
 
         return prange_rate_errors
 
@@ -217,6 +217,17 @@ class VDFLL:
         )
 
         return pranges, prange_rates
+
+    @staticmethod
+    def pad_log(log: list):
+        epochs = len(log)
+        max_nemitters = len(max(log, key=len))
+        padded_log = np.full((epochs, max_nemitters), np.nan)
+
+        for epoch, emitters in enumerate(log):
+            padded_log[epoch][0 : len(emitters)] = emitters
+
+        return padded_log
 
     # private
     def __compute_A(self):
@@ -348,13 +359,3 @@ class VDFLL:
             self.P = (I - K @ self.H) @ self.P @ (I - K @ self.H).T + K @ self.R @ K.T
 
             delta_diag_P = np.diag(previous_P - self.P)
-
-    def __pad_log(self, log: list):
-        epochs = len(log)
-        max_nemitters = len(max(log, key=len))
-        padded_log = np.full((epochs, max_nemitters), np.nan)
-
-        for epoch, emitters in enumerate(log):
-            padded_log[epoch][0 : len(emitters)] = emitters
-
-        return padded_log
