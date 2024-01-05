@@ -1,5 +1,5 @@
 time:
-  duration: 10.0 # [s]
+  duration: 600.0 # [s]
   fsim: 50 # [Hz]
   year: 2024
   month: 1
