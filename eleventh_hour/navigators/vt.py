@@ -28,6 +28,7 @@ class VDFLLConfiguration:
     # tuning
     process_noise_sigma: float
     tap_spacing: float
+    norm_innovation_thresh: float
     correlator_buff_size: int
 
     # initial states
@@ -59,6 +60,7 @@ class VDFLL:
         # tuning
         self.process_noise_sigma = conf.process_noise_sigma
         self.tap_spacing = conf.tap_spacing
+        self.norm_innovation_thresh = conf.norm_innovation_thresh
 
         # initial states
         self.rx_state = np.array(
@@ -155,7 +157,13 @@ class VDFLL:
         prange_rate_error = ferror * -self.wavelength
         z = np.append(prange_error, prange_rate_error)
 
-        K = self.P @ self.H.T @ np.linalg.inv(self.H @ self.P @ self.H.T + self.R)
+        S = self.H @ self.P @ self.H.T + self.R
+        norm_z = np.abs(z / np.sqrt(np.diag(S)))
+
+        if np.any(norm_z) > self.norm_innovation_thresh:
+            return
+
+        K = self.P @ self.H.T @ np.linalg.inv(S)
         self.rx_state += K @ z
         self.P = (I - K @ self.H) @ self.P @ (I - K @ self.H).T + K @ self.R @ K.T
 
