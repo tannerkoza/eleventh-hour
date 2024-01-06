@@ -8,18 +8,20 @@ from tqdm import tqdm
 from pathlib import Path
 from eleventh_hour.trajectories import prepare_trajectories
 from eleventh_hour.navigators.vt import VDFLL, VDFLLConfiguration
+from eleventh_hour.plot import geoplot
 
 # sim parameters
-TRAJECTORY = "road_finland_sdx_01_onego"
+TRAJECTORY = "road_south_india_sdx_01s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 IS_PLOTTED = True
 
 # vdfll parameters
-PROCESS_NOISE_SIGMA = 20
+PROCESS_NOISE_SIGMA = 50
 CORRELATOR_BUFF_SIZE = 20
 TAP_SPACING = 0.5
-NSUBCORRELATORS = [4, 0, 0]
+NORM_INNOVATION_THRESH = 2.5
+NSUBCORRELATORS = 4
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
@@ -76,6 +78,7 @@ def simulate(
     vdfll_conf = VDFLLConfiguration(
         process_noise_sigma=PROCESS_NOISE_SIGMA,
         tap_spacing=TAP_SPACING,
+        norm_innovation_thresh=NORM_INNOVATION_THRESH,
         correlator_buff_size=CORRELATOR_BUFF_SIZE,
         rx_pos=rx_pos0,
         rx_vel=rx_vel0,
@@ -104,8 +107,8 @@ def simulate(
             est_prange_rates=est_prange_rates,
         )
         correlators = [
-            corr_sim.correlate(tap_spacing=tap_spacing, nsubcorrelators=nsubcorrelators)
-            for tap_spacing, nsubcorrelators in zip(tap_spacings, NSUBCORRELATORS)
+            corr_sim.correlate(tap_spacing=tap_spacing, nsubcorrelators=NSUBCORRELATORS)
+            for tap_spacing in tap_spacings
         ]
 
         vdfll.update_correlator_buffers(
@@ -116,9 +119,7 @@ def simulate(
 
     # plot
     if IS_PLOTTED:
-        ecef0 = sim_rx_states.pos[0]
-        lla0 = pm.ecef2geodetic(x=ecef0[0], y=ecef0[1], z=ecef0[2])
-        plot(truth_states=sim_rx_states, vdfll=vdfll, lla0=lla0)
+        plot(truth_states=sim_rx_states, vdfll=vdfll)
 
     return sim_rx_states, vdfll
 
@@ -134,8 +135,15 @@ def generate_truth(
     return meas_sim
 
 
-def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
+def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL):
     sns.set_context("poster")
+
+    truth_lla = np.array(
+        pm.ecef2geodetic(
+            x=truth_states.pos[:, 0], y=truth_states.pos[:, 1], z=truth_states.pos[:, 2]
+        )
+    )
+    lla0 = truth_lla[:, 0]
 
     truth_pos = np.array(
         pm.ecef2enu(
@@ -186,8 +194,9 @@ def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
 
     ip = vdfll.pad_log(log=[epoch.ip for epoch in vdfll.correlators])
     qp = vdfll.pad_log(log=[epoch.qp for epoch in vdfll.correlators])
-    ie = vdfll.pad_log(log=[epoch.ie for epoch in vdfll.correlators])
-    il = vdfll.pad_log(log=[epoch.il for epoch in vdfll.correlators])
+
+    plt.figure()
+    geoplot(lat=truth_lla[0], lon=truth_lla[1])
 
     plt.figure()
     plt.title("Trajectory")
@@ -196,6 +205,14 @@ def plot(truth_states: ns.ReceiverTruthStates, vdfll: VDFLL, lla0: np.ndarray):
     plt.xlabel("East [m]")
     plt.ylabel("North [m]")
     plt.legend()
+
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    fig.supxlabel("Time [s]")
+    fig.suptitle("Position: East, North, Up")
+    for index, ax in enumerate(axes):
+        ax.plot(truth_states.time, truth_pos[index], label="truth")
+        ax.plot(truth_states.time, vdfll_pos[index], label="vdfll")
+        ax.set_ylabel("Position [m]")
 
     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
     fig.supxlabel("Time [s]")
