@@ -5,28 +5,37 @@ import cartopy.geodesic as cgeo
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 
 from PIL import Image
 from planar import BoundingBox
 from shapely.geometry import LineString
 from urllib.request import urlopen, Request
+from cartopy.mpl.geoaxes import GeoAxes
+from collections.abc import Iterable
 
 
-def geoplot(lat, lon, style="satellite", ax=None, **kwargs):
-    if style == "map":
-        cimgt.OSM.get_image = __image_spoof
-        img = cimgt.OSM()  # spoofed, downloaded street map
-    elif style == "satellite":
-        cimgt.QuadtreeTiles.get_image = __image_spoof
-        img = cimgt.QuadtreeTiles()  # spoofed, downloaded street map
+def geoplot(lat, lon, tiles="satellite", **kwargs):
+    match tiles:
+        case "map":
+            cimgt.OSM.get_image = __image_spoof
+            img = cimgt.OSM()  # spoofed, downloaded street map
+
+        case "satellite":
+            cimgt.QuadtreeTiles.get_image = __image_spoof
+            img = cimgt.QuadtreeTiles()  # spoofed, downloaded street map
+
+        case _:
+            print("invalid style")
+
+    if isinstance(plt.gca(), GeoAxes):
+        ax = plt.gca()
     else:
-        print("invalid style")
-
-    if ax is None:
-        ax = plt.axes(projection=img.crs)
+        plt.close()
+        fig = plt.gcf()
+        ax = fig.add_subplot(projection=img.crs)
 
     data_crs = ccrs.PlateCarree()
-
     extent, radius = __compute_multiple_coordinate_extent(lons=lon, lats=lat)
 
     # auto-calculate scale
@@ -105,3 +114,58 @@ def __image_spoof(self, tile):
     img = img.convert(self.desired_tile_form)  # set image format
 
     return img, self.tileextent(tile), "lower"  # reformat for cartopy
+
+
+def skyplot(
+    az: np.ndarray, el: np.ndarray, name: str | list = None, deg: bool = True, **kwargs
+):
+    if isinstance(plt.gca(), plt.PolarAxes):
+        ax = plt.gca()
+    else:
+        plt.close()
+        fig = plt.gcf()
+        ax = fig.add_subplot(projection="polar")
+
+    if deg:
+        az = np.radians(az)
+    else:
+        el = np.degrees(el)
+
+    # format polar axes
+    ax.set_theta_zero_location("N")
+    ax.set_theta_direction(-1)
+    ax.set_rlim(91, 1)
+
+    degree_sign = "\N{DEGREE SIGN}"
+    r_labels = [
+        "0" + degree_sign,
+        "",
+        "30" + degree_sign,
+        "",
+        "60" + degree_sign,
+        "",
+        "90" + degree_sign,
+    ]
+    ax.set_rgrids(range(1, 106, 15), r_labels, angle=22.5)
+
+    ax.set_axisbelow(True)
+
+    # plot
+    ax.scatter(az, el, **kwargs)
+
+    # annotate object names
+    if name is not None:
+        if not isinstance(name, Iterable):
+            name = (name,)
+
+        for obj, n in enumerate(name):
+            ax.annotate(
+                n,
+                (az[obj, 0], el[obj, 0]),
+                fontsize="x-small",
+                path_effects=[pe.withStroke(linewidth=3, foreground="w")],
+            )
+
+    ax.figure.canvas.draw()
+
+    return ax
