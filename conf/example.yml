@@ -13,10 +13,27 @@ constellations:
       signal: gpsl1ca
       js: 0.0
       correlator_model: bpsk
-    iridium-next:
+    galileo:
+      signal: gpsl1ca
+      js: 0.0
+      correlator_model: bpsk
+    # orbcomm:
+    #   signal: freedom
+    #   js: 0.0
+    #   correlator_model: bpsk
+    # iridium-next:
+    #   signal: freedom
+    #   js: 0.0
+    #   correlator_model: bpsk
+    # globalstar:
+    #   signal: freedom
+    #   js: 0.0
+    #   correlator_model: bpsk
+    oneweb:
       signal: freedom
       js: 0.0
       correlator_model: bpsk
 
 errors:
   rx_clock: "high_quality_txco"
+  ionosphere: "klobuchar"

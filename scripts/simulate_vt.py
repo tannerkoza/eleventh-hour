@@ -8,7 +8,7 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
-from eleventh_hour.plot import geoplot, skyplot
+from eleventh_hour.plot import geoplot, skyplot, plot_constellation_dataframe
 from eleventh_hour.trajectories import prepare_trajectories
 from eleventh_hour.navigators.vt import VDFLL, VDFLLConfiguration
 
@@ -16,7 +16,7 @@ from eleventh_hour.navigators.vt import VDFLL, VDFLLConfiguration
 TRAJECTORY = "road_usa_sdx_1s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = False
-IS_PLOTTED = True
+IS_PLOTTED = False
 
 # vdfll parameters
 PROCESS_NOISE_SIGMA = 50
@@ -35,7 +35,7 @@ DATA_PATH = PROJECT_PATH / "data"
 TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
 
 
-def setup_simulation():
+def setup_simulation(disable_progress: bool = False):
     # sim setup
     conf = ns.get_configuration(configuration_path=CONFIG_PATH)
 
@@ -47,7 +47,9 @@ def setup_simulation():
         rx_pos = rx_pos[0]
         rx_vel = np.zeros_like(rx_pos)
 
-    meas_sim = generate_truth(conf=conf, rx_pos=rx_pos, rx_vel=rx_vel)
+    meas_sim = generate_truth(
+        conf=conf, rx_pos=rx_pos, rx_vel=rx_vel, disable_progress=disable_progress
+    )
     corr_sim = ns.CorrelatorSimulation(configuration=conf)
 
     return conf, meas_sim, corr_sim
@@ -57,6 +59,7 @@ def simulate(
     conf: ns.SimulationConfiguration,
     meas_sim: ns.MeasurementSimulation,
     corr_sim: ns.CorrelatorSimulation,
+    disable_progress: bool = False,
 ):
     # measurement simulation
     meas_sim.simulate()
@@ -100,6 +103,7 @@ def simulate(
         enumerate(sim_observables),
         total=len(sim_observables),
         desc="[eleventh-hour] simulating correlators",
+        disable=disable_progress,
     ):
         vdfll.time_update(T=1 / conf.time.fsim)
         est_pranges, est_prange_rates = vdfll.predict_observables(
@@ -146,10 +150,15 @@ def simulate(
 
 
 def generate_truth(
-    conf: ns.SimulationConfiguration, rx_pos: np.ndarray, rx_vel: np.ndarray = None
+    conf: ns.SimulationConfiguration,
+    rx_pos: np.ndarray,
+    rx_vel: np.ndarray = None,
+    disable_progress: bool = False,
 ):
     meas_sim = ns.get_signal_simulation(
-        simulation_type="measurement", configuration=conf
+        simulation_type="measurement",
+        configuration=conf,
+        disable_progress=disable_progress,
     )
     meas_sim.generate_truth(rx_pos=rx_pos, rx_vel=rx_vel)
 
@@ -205,9 +214,9 @@ def plot(
 
     vdfll_pos = np.array(
         pm.ecef2enu(
-            x=vdfll.rx_states[:, 0],
-            y=vdfll.rx_states[:, 2],
-            z=vdfll.rx_states[:, 4],
+            x=vdfll.rx_states.x_pos,
+            y=vdfll.rx_states.y_pos,
+            z=vdfll.rx_states.z_pos,
             lat0=lla0[0],
             lon0=lla0[1],
             h0=lla0[2],
@@ -215,15 +224,15 @@ def plot(
     )
     vdfll_vel = np.array(
         pm.ecef2enuv(
-            u=vdfll.rx_states[:, 1],
-            v=vdfll.rx_states[:, 3],
-            w=vdfll.rx_states[:, 5],
+            u=vdfll.rx_states.x_vel,
+            v=vdfll.rx_states.y_vel,
+            w=vdfll.rx_states.z_vel,
             lat0=lla0[0],
             lon0=lla0[1],
         )
     )
-    vdfll_cb = vdfll.rx_states[:, 6]
-    vdfll_cd = vdfll.rx_states[:, 7]
+    vdfll_cb = vdfll.rx_states.clock_bias
+    vdfll_cd = vdfll.rx_states.clock_drfit
 
     pos_error = truth_pos.T - vdfll_pos.T
     vel_error = truth_vel.T - vdfll_vel.T
@@ -354,7 +363,7 @@ def plot(
 
     plt.figure()
     plt.title("Code Discriminator [m]")
-    plt.plot(truth_rx_states.time, vdfll.prange_errors)
+    plot_constellation_dataframe(truth_rx_states.time, vdfll.prange_errors)
     plt.xlabel("Time [s]")
     plt.ylabel("Error [m]")
     plt.tight_layout()
@@ -362,7 +371,7 @@ def plot(
 
     plt.figure()
     plt.title("Frequency Discriminator [m/s]")
-    plt.plot(truth_rx_states.time, vdfll.prange_rate_errors)
+    plot_constellation_dataframe(truth_rx_states.time, vdfll.prange_rate_errors)
     plt.xlabel("Time [s]")
     plt.ylabel("Error [m/s]")
     plt.tight_layout()

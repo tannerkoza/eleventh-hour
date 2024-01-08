@@ -6,6 +6,7 @@ import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
+import pandas as pd
 
 from PIL import Image
 from planar import BoundingBox
@@ -169,3 +170,9 @@ def skyplot(
     ax.figure.canvas.draw()
 
     return ax
+
+
+def plot_constellation_dataframe(x_data: np.ndarray, df: pd.DataFrame, **kwargs):
+    for constellation in df:
+        y_data = np.vstack(df[constellation].dropna()).T
+        plt.plot(x_data, y_data, label=constellation, **kwargs)
