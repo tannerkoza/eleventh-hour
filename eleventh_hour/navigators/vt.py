@@ -1,10 +1,12 @@
 import numpy as np
 import navsim as ns
+import pandas as pd
 import navtools as nt
 import scipy.linalg as linalg
 
 from numba import njit
 from dataclasses import dataclass
+from collections import defaultdict
 from navtools.constants import SPEED_OF_LIGHT
 from navsim.error_models.clock import NavigationClock
 
@@ -94,38 +96,53 @@ class VDFLL:
 
         # logging
         self.__rx_states_log = []
-        self.__code_error_log = []
-        self.__ferror_log = []
-        self.__prange_error_log = []
-        self.__prange_rate_error_log = []
+        self.__code_error_log = defaultdict(lambda: defaultdict(lambda: []))
+        self.__ferror_log = defaultdict(lambda: defaultdict(lambda: []))
+        self.__prange_error_log = defaultdict(lambda: defaultdict(lambda: []))
+        self.__prange_rate_error_log = defaultdict(lambda: defaultdict(lambda: []))
+
         self.__correlator_log = []
 
     # properties
     @property
     def rx_states(self):
-        return np.array(self.__rx_states_log)
+        rx_states = pd.DataFrame(
+            self.__rx_states_log,
+            columns=[
+                "x_pos",
+                "x_vel",
+                "y_pos",
+                "y_vel",
+                "z_pos",
+                "z_vel",
+                "clock_bias",
+                "clock_drfit",
+            ],
+        )
+
+        return rx_states
 
     @property
     def code_errors(self):
-        code_errors = self.pad_log(log=self.__code_error_log)
+        code_errors = pd.DataFrame(self.__code_error_log)
 
         return code_errors
 
     @property
     def ferrors(self):
-        ferrors = self.pad_log(log=self.__ferror_log)
+        ferrors = pd.DataFrame(self.__ferror_log)
 
         return ferrors
 
     @property
     def prange_errors(self):
-        prange_errors = self.pad_log(log=self.__prange_error_log)
+        prange_errors = pd.DataFrame(self.__prange_error_log)
 
         return prange_errors
 
     @property
     def prange_rate_errors(self):
-        prange_rate_errors = self.pad_log(log=self.__prange_rate_error_log)
+        prange_rate_errors = pd.DataFrame(self.__prange_rate_error_log)
 
         return prange_rate_errors
 
@@ -169,10 +186,10 @@ class VDFLL:
 
         # logging
         self.__rx_states_log.append(self.rx_state)
-        self.__code_error_log.append(code_error)
-        self.__ferror_log.append(ferror)
-        self.__prange_error_log.append(prange_error)
-        self.__prange_rate_error_log.append(prange_rate_error)
+        self.__log_by_emitter(data=code_error, log=self.__code_error_log)
+        self.__log_by_emitter(data=ferror, log=self.__ferror_log)
+        self.__log_by_emitter(data=prange_error, log=self.__prange_error_log)
+        self.__log_by_emitter(data=prange_rate_error, log=self.__prange_rate_error_log)
 
     def update_correlator_buffers(
         self,
@@ -218,6 +235,7 @@ class VDFLL:
         pranges = np.array(ranges) + rx_clock_bias
         prange_rates = np.array(range_rates) + rx_clock_drift
 
+        self.__emitter_states = emitter_states
         self.nchannels = len(constellations)
         self.unit_vectors = np.array(unit_vectors).T
         self.__update_cycle_lengths(
@@ -367,3 +385,7 @@ class VDFLL:
             self.P = (I - K @ self.H) @ self.P @ (I - K @ self.H).T + K @ self.R @ K.T
 
             delta_diag_P = np.diag(previous_P - self.P)
+
+    def __log_by_emitter(self, data: np.ndarray, log: defaultdict):
+        for idx, emitter in enumerate(self.__emitter_states.values()):
+            log[emitter.constellation][emitter.id].append(data[idx])
