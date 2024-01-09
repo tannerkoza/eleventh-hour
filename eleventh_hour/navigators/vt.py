@@ -64,7 +64,7 @@ class VDFLLChannelErrors:
     prange_rate: defaultdict
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class VDFLLCorrelators:
     ip: defaultdict
     qp: defaultdict
@@ -148,10 +148,10 @@ class VDFLL:
     @property
     def channel_errors(self):
         channel_errors = VDFLLChannelErrors(
-            chip=self.__chip_error_log,
-            frequency=self.__ferror_log,
-            prange=self.__prange_error_log,
-            prange_rate=self.__prange_rate_error_log,
+            chip=dict(self.__chip_error_log),
+            frequency=dict(self.__ferror_log),
+            prange=dict(self.__prange_error_log),
+            prange_rate=dict(self.__prange_rate_error_log),
         )
 
         return channel_errors
@@ -159,14 +159,14 @@ class VDFLL:
     @property
     def correlators(self):
         correlators = VDFLLCorrelators(
-            ip=self.__ip_log,
-            qp=self.__qp_log,
-            ie=self.__ie_log,
-            qe=self.__qe_log,
-            il=self.__il_log,
-            ql=self.__ql_log,
-            sub_ip=self.__sub_ip_log,
-            sub_qp=self.__sub_qp_log,
+            ip=dict(self.__ip_log),
+            qp=dict(self.__qp_log),
+            ie=dict(self.__ie_log),
+            qe=dict(self.__qe_log),
+            il=dict(self.__il_log),
+            ql=dict(self.__ql_log),
+            sub_ip=dict(self.__sub_ip_log),
+            sub_qp=dict(self.__sub_qp_log),
         )
         return correlators
 

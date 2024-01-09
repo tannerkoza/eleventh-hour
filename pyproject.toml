@@ -8,12 +8,12 @@ packages = [{include = "eleventh_hour"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
-navsim = {path = "libs/navsim", develop = true}
 seaborn = "^0.13.1"
 cartopy = "^0.22.0"
 shapely = "^2.0.2"
 planar = {git = "https://github.com/chalk-diagrams/planar.git"}
 adjusttext = "^1.0"
+navsim = {path = "libs/navsim", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"
