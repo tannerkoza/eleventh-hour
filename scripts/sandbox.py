@@ -1,27 +1,17 @@
 import numpy as np
-import pandas as pd
-from dataclasses import dataclass
-from collections import defaultdict
+from numba import njit
+from itertools import product
+from navtools.conversions import ecef2lla, enu2ecef
 
-N = 4
+epoch_emitters = ["G10", "G12"]
+emitters = ["G10", "G14"]
+cn0 = np.array([45, 46])
 
+new_emitters = set(epoch_emitters) - set(emitters)
+removed_emitters = set(emitters) - set(epoch_emitters)
 
-@dataclass
-class Test:
-    a: float = 1.0
-    b: float = 2.0
+removed_indices = [emitters.index(emitter) for emitter in removed_emitters]
 
+cn0 = np.delete(cn0, [])
 
-my_dict = defaultdict(lambda: [])
-
-for _ in range(100):
-    random_key1 = str(np.random.randint(0, 10))
-    random_key2 = str(np.random.randint(10, 20))
-
-    my_dict[(random_key1, random_key2)].append(Test())
-
-df = pd.DataFrame.from_dict(
-    dict([(key, pd.Series(value)) for key, value in my_dict.items()])
-)
-
-print("")
+print()

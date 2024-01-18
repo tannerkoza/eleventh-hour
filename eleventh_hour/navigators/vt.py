@@ -4,86 +4,28 @@ import navtools as nt
 import scipy.linalg as linalg
 
 from numba import njit
-from dataclasses import dataclass
 from collections import defaultdict
 from navtools.constants import SPEED_OF_LIGHT
 from navsim.error_models.clock import NavigationClock
-
-
-@njit(cache=True)
-def compute_prange_residual_var(cn0: np.ndarray, T: float, chip_length: float):
-    cn0 = 10 ** (cn0 / 10)
-    var = chip_length**2 * (1 / (2 * T**2 * cn0**2) + 1 / (4 * T * cn0))
-
-    return var
-
-
-@njit(cache=True)
-def compute_prange_rate_residual_var(cn0: np.ndarray, T: float, wavelength: float):
-    cn0 = 10 ** (cn0 / 10)
-    var = (wavelength / (np.pi * T)) ** 2 * (
-        2 / ((T) ** 2 * cn0**2) + 2 / ((T) * cn0)
-    )
-
-    return var
-
-
-@dataclass(frozen=True)
-class VDFLLConfiguration:
-    # tuning
-    process_noise_sigma: float
-    tap_spacing: float
-    norm_innovation_thresh: float
-    correlator_buff_size: int
-
-    # initial states
-    rx_pos: np.ndarray
-    rx_vel: np.ndarray
-    rx_clock_bias: float
-    rx_clock_drift: float
-    cn0: np.ndarray
-
-    # properties
-    rx_clock_type: str
-    signal_properties: ns.SatelliteSignal
-
-
-@dataclass(frozen=True)
-class VDFLLReceiverStates:
-    pos: np.ndarray
-    vel: np.ndarray
-    clock_bias: np.ndarray
-    clock_drift: np.ndarray
-
-
-@dataclass(frozen=True)
-class VDFLLChannelErrors:
-    chip: defaultdict
-    frequency: defaultdict
-    prange: defaultdict
-    prange_rate: defaultdict
-
-
-@dataclass(frozen=True, repr=False)
-class VDFLLCorrelators:
-    ip: defaultdict
-    qp: defaultdict
-    ie: defaultdict
-    qe: defaultdict
-    il: defaultdict
-    ql: defaultdict
-    sub_ip: defaultdict
-    sub_qp: defaultdict
+from navsim.simulations.correlator import CorrelatorOutputs
+from eleventh_hour.navigators import (
+    VDFLLConfiguration,
+    ReceiverStates,
+    ChannelErrors,
+    Correlators,
+)
 
 
 class VDFLL:
     def __init__(self, conf: VDFLLConfiguration) -> None:
         # tuning
-        self.process_noise_sigma = conf.process_noise_sigma
+        self.proc_noise_sigma = conf.proc_noise_sigma
         self.tap_spacing = conf.tap_spacing
-        self.norm_innovation_thresh = conf.norm_innovation_thresh
+        self.ni_threshold = conf.ni_threshold
 
         # initial states
+        self.cn0 = conf.cn0
+        self.T = conf.T
         self.rx_state = np.array(
             [
                 conf.rx_pos[0],
@@ -96,77 +38,94 @@ class VDFLL:
                 conf.rx_clock_drift,
             ]
         )
-        self.cn0 = conf.cn0
 
         # properties
-        if conf.rx_clock_type is not None:
-            self.rx_clock_params = ns.get_clock_allan_variance_values(
+        if conf.rx_clock_type is None:
+            self.rx_clock_properties = NavigationClock(h0=0.0, h1=0.0, h2=0.0)
+
+        else:
+            self.rx_clock_properties = ns.get_clock_allan_variance_values(
                 clock_name=conf.rx_clock_type
             )
-        else:
-            self.rx_clock_params = NavigationClock(h0=0.0, h1=0.0, h2=0.0)
-        self.__signal_properties = conf.signal_properties
+        self.__sig_properties = conf.sig_properties
 
-        # state
+        # cn0
+        self.__ncorr_updates = 0
+        self.__cn0_buffer_size = conf.cn0_buff_size
+        self.__ip_cn0_buff = []
+        self.__qp_cn0_buff = []
+
+        # Kalman filter
+        self.__compute_A()
+        self.__compute_Q()
         self.P = np.eye(self.rx_state.size)
         self.__is_covariance_not_ss = True
-        self.correlator_buff_size = conf.correlator_buff_size
-        self.nloop_closures = 0
 
         # logging
-        self.__rx_states_log = []
+        self.__init_logging()
 
-        self.__chip_error_log = defaultdict(lambda: [])
-        self.__ferror_log = defaultdict(lambda: [])
-        self.__prange_error_log = defaultdict(lambda: [])
-        self.__prange_rate_error_log = defaultdict(lambda: [])
+    def __init_logging(self):
+        # state
+        self.__rx_states = []
+        self.__covariances = []
 
-        self.__ip_log = defaultdict(lambda: [])
-        self.__qp_log = defaultdict(lambda: [])
-        self.__sub_ip_log = defaultdict(lambda: [])
-        self.__sub_qp_log = defaultdict(lambda: [])
+        # discriminator errors
+        self.__chip_errors = defaultdict(lambda: [])
+        self.__ferrors = defaultdict(lambda: [])
+        self.__prange_errors = defaultdict(lambda: [])
+        self.__prange_rate_errors = defaultdict(lambda: [])
 
-        self.__ie_log = defaultdict(lambda: [])
-        self.__qe_log = defaultdict(lambda: [])
-
-        self.__il_log = defaultdict(lambda: [])
-        self.__ql_log = defaultdict(lambda: [])
+        # correlators
+        self.__ip = defaultdict(lambda: [])
+        self.__qp = defaultdict(lambda: [])
+        self.__ie = defaultdict(lambda: [])
+        self.__qe = defaultdict(lambda: [])
+        self.__il = defaultdict(lambda: [])
+        self.__ql = defaultdict(lambda: [])
+        self.__subip = defaultdict(lambda: [])
+        self.__subqp = defaultdict(lambda: [])
 
     # properties
     @property
     def rx_states(self):
-        rx_states_log = np.array(self.__rx_states_log)
-        rx_states = VDFLLReceiverStates(
-            pos=rx_states_log[:, :6:2],
-            vel=rx_states_log[:, 1:7:2],
-            clock_bias=rx_states_log[:, 6],
-            clock_drift=rx_states_log[:, 7],
+        log = np.array(self.__rx_states).T
+        rx_states = ReceiverStates(
+            pos=log[:6:2],
+            vel=log[1:7:2],
+            clock_bias=log[6],
+            clock_drift=log[7],
         )
 
         return rx_states
 
     @property
+    def covariances(self):
+        covariances = np.array(self.__covariances)
+
+        return covariances
+
+    @property
     def channel_errors(self):
-        channel_errors = VDFLLChannelErrors(
-            chip=dict(self.__chip_error_log),
-            frequency=dict(self.__ferror_log),
-            prange=dict(self.__prange_error_log),
-            prange_rate=dict(self.__prange_rate_error_log),
+        channel_errors = ChannelErrors(
+            chip=dict(self.__chip_errors),
+            freq=dict(self.__ferrors),
+            prange=dict(self.__prange_errors),
+            prange_rate=dict(self.__prange_rate_errors),
         )
 
         return channel_errors
 
     @property
     def correlators(self):
-        correlators = VDFLLCorrelators(
-            ip=dict(self.__ip_log),
-            qp=dict(self.__qp_log),
-            ie=dict(self.__ie_log),
-            qe=dict(self.__qe_log),
-            il=dict(self.__il_log),
-            ql=dict(self.__ql_log),
-            sub_ip=dict(self.__sub_ip_log),
-            sub_qp=dict(self.__sub_qp_log),
+        correlators = Correlators(
+            ip=dict(self.__ip),
+            qp=dict(self.__qp),
+            ie=dict(self.__ie),
+            qe=dict(self.__qe),
+            il=dict(self.__il),
+            ql=dict(self.__ql),
+            subip=dict(self.__subip),
+            subqp=dict(self.__subqp),
         )
         return correlators
 
@@ -182,6 +141,13 @@ class VDFLL:
         self.P = self.A @ self.P @ self.A.T + self.Q
 
     def predict_observables(self, emitter_states: dict):
+        epoch_emitters = list(emitter_states.keys())
+
+        # initialize emitters attribute
+        if not hasattr(self, "emitters"):
+            self.emitters = epoch_emitters
+        self.__update_emitters(epoch_emitters=epoch_emitters)
+
         # extract current state
         rx_pos = self.rx_state[:6:2]
         rx_vel = self.rx_state[1:7:2]
@@ -189,23 +155,23 @@ class VDFLL:
         rx_clock_drift = self.rx_state[7]
 
         constellations = []
-        ranges = []
         unit_vectors = []
+        ranges = []
         range_rates = []
 
         # geometric range & range rate determination
         for emitter_state in emitter_states.values():
-            grange, unit_vector = nt.compute_range_and_unit_vector(
+            range, unit_vector = nt.compute_range_and_unit_vector(
                 rx_pos=rx_pos, emitter_pos=emitter_state.pos
             )
-            grange_rate = nt.compute_range_rate(
+            range_rate = nt.compute_range_rate(
                 rx_vel=rx_vel, emitter_vel=emitter_state.vel, unit_vector=unit_vector
             )
 
             constellations.append(emitter_state.constellation)
-            ranges.append(grange)
+            ranges.append(range)
             unit_vectors.append(unit_vector)
-            range_rates.append(grange_rate)
+            range_rates.append(range_rate)
 
         # observable prediction
         # TODO: add group delay/drift from emitter states
@@ -224,31 +190,41 @@ class VDFLL:
 
     def update_correlator_buffers(
         self,
-        prompt: ns.CorrelatorOutputs,
-        early: ns.CorrelatorOutputs,
-        late: ns.CorrelatorOutputs,
+        prompt: CorrelatorOutputs,
+        early: CorrelatorOutputs,
+        late: CorrelatorOutputs,
     ):
-        # TODO: adapt this method to handle len(buff) > 1
-        self.__ip = prompt.inphase
-        self.__qp = prompt.quadrature
-        self.__sub_ip = prompt.subinphase
-        self.__sub_qp = prompt.subquadrature
-        self.__log_by_emitter(data=self.__ip, log=self.__ip_log)
-        self.__log_by_emitter(data=self.__qp, log=self.__qp_log)
-        self.__log_by_emitter(data=self.__sub_ip.T, log=self.__sub_ip_log)
-        self.__log_by_emitter(data=self.__sub_qp.T, log=self.__sub_qp_log)
+        self.ip = prompt.inphase
+        self.qp = prompt.quadrature
+        self.subip = prompt.subinphase
+        self.subqp = prompt.subquadrature
+        self.ie = early.inphase
+        self.qe = early.quadrature
+        self.il = late.inphase
+        self.ql = late.quadrature
 
-        self.__ie = early.inphase
-        self.__qe = early.quadrature
-        self.__log_by_emitter(data=self.__ie, log=self.__ie_log)
-        self.__log_by_emitter(data=self.__qe, log=self.__qe_log)
+        self.__update_cn0_buffers(ip=prompt.inphase, qp=prompt.quadrature)
 
-        self.__il = late.inphase
-        self.__ql = late.quadrature
-        self.__log_by_emitter(data=self.__il, log=self.__il_log)
-        self.__log_by_emitter(data=self.__ql, log=self.__ql_log)
+        self.__ncorr_updates += 1
+
+        # cn0 update logic
+        self.__is_cn0_updated = self.__ncorr_updates % self.__cn0_buffer_size == 0
+
+        # logging
+        self.__log_by_emitter(data=prompt.inphase, log=self.__ip)
+        self.__log_by_emitter(data=prompt.quadrature, log=self.__qp)
+        self.__log_by_emitter(data=early.inphase, log=self.__ie)
+        self.__log_by_emitter(data=early.quadrature, log=self.__qe)
+        self.__log_by_emitter(data=early.inphase, log=self.__il)
+        self.__log_by_emitter(data=early.quadrature, log=self.__ql)
+        self.__log_by_emitter(data=prompt.subinphase.T, log=self.__subip)
+        self.__log_by_emitter(data=prompt.subquadrature.T, log=self.__subqp)
 
     def loop_closure(self):
+        # cn0 estimation
+        if self.__is_cn0_updated or self.__new_emitters:
+            self.__estimate_cn0()
+
         # observation & measurement covariance
         self.__compute_H()
         self.__compute_R()
@@ -262,25 +238,32 @@ class VDFLL:
         chip_error, ferror = self.__discriminate()
         prange_error = chip_error * self.chip_length
         prange_rate_error = ferror * -self.wavelength
-        z = np.append(prange_error, prange_rate_error)
 
-        S = self.H @ self.P @ self.H.T + self.R  # innovation covariance for fde
+        y = np.append(prange_error, prange_rate_error)  # innovation
 
-        norm_z = np.abs(z / np.sqrt(np.diag(S)))  # fault detection & exclusion
-        if np.any(norm_z) > self.norm_innovation_thresh:
+        # logging
+        self.__log_by_emitter(data=chip_error, log=self.__chip_errors)
+        self.__log_by_emitter(data=ferror, log=self.__ferrors)
+        self.__log_by_emitter(data=prange_error, log=self.__prange_errors)
+        self.__log_by_emitter(data=prange_rate_error, log=self.__prange_rate_errors)
+
+        # normalized innovation filtering
+        S = self.H @ self.P @ self.H.T + self.R
+
+        norm_z = np.abs(y / np.sqrt(np.diag(S)))  # fault detection & exclusion
+        if np.any(norm_z > self.ni_threshold):
             return
 
         # state & covariance update
         K = self.P @ self.H.T @ np.linalg.inv(S)
-        self.rx_state += K @ z
+        self.rx_state += K @ y
         self.P = (I - K @ self.H) @ self.P @ (I - K @ self.H).T + K @ self.R @ K.T
 
-        # logging
-        self.__rx_states_log.append(self.rx_state)
-        self.__log_by_emitter(data=chip_error, log=self.__chip_error_log)
-        self.__log_by_emitter(data=ferror, log=self.__ferror_log)
-        self.__log_by_emitter(data=prange_error, log=self.__prange_error_log)
-        self.__log_by_emitter(data=prange_rate_error, log=self.__prange_rate_error_log)
+    def log_rx_state(self):
+        self.__rx_states.append(self.rx_state)
+
+    def log_covariance(self):
+        self.__covariances.append(self.P)
 
     # private
     def __compute_A(self):
@@ -289,7 +272,7 @@ class VDFLL:
 
     def __compute_Q(self):
         # position and velocity
-        xyz_Q = (self.process_noise_sigma**2) * np.array(
+        xyz_Q = (self.proc_noise_sigma**2) * np.array(
             [
                 [(1 / 3) * self.T**3, (1 / 2) * self.T**2],
                 [(1 / 2) * self.T**2, self.T],
@@ -297,10 +280,10 @@ class VDFLL:
         )
 
         # clock
-        sf = self.rx_clock_params.h0 / 2
-        sg = self.rx_clock_params.h2 * 2 * np.pi**2
+        sf = self.rx_clock_properties.h0 / 2
+        sg = self.rx_clock_properties.h2 * 2 * np.pi**2
 
-        clock_Q = SPEED_OF_LIGHT * np.array(
+        clock_Q = SPEED_OF_LIGHT**2 * np.array(
             [
                 [sf * self.T + (1 / 3) * sg * self.T**3, (1 / 2) * sg * self.T**2],
                 [(1 / 2) * sg * self.T**2, sg * self.T],
@@ -345,7 +328,7 @@ class VDFLL:
         wavelength = []
 
         for constellation, prange_rate in zip(constellations, prange_rates):
-            properties = self.__signal_properties.get(constellation.casefold())
+            properties = self.__sig_properties.get(constellation.casefold())
 
             fcarrier = properties.fcarrier
             fchip = properties.fchip_data  # ! assumes tracking data channel !
@@ -359,6 +342,42 @@ class VDFLL:
 
         self.chip_length = np.array(chip_length)
         self.wavelength = np.array(wavelength)
+
+    def __estimate_cn0(self):
+        ZERO_THRESHOLD = 10
+        RSCN_THRESHOLD = 22
+
+        # pad list to account for new or removed satellites
+        ip = nt.pad_list(input_list=self.__ip_cn0_buff)
+        qp = nt.pad_list(input_list=self.__qp_cn0_buff)
+
+        bandwidth = 1 / self.T
+
+        # Beaulieu
+        latest_buffer = ip[1:, :]
+        previous_buffer = ip[:-1, :]
+
+        noise_power = (np.abs(latest_buffer) - np.abs(previous_buffer)) ** 2
+        data_power = 0.5 * (latest_buffer**2 + previous_buffer**2)
+        snr = 1 / np.mean(noise_power / data_power, axis=0)
+        cn0 = 10 * np.log10(snr * bandwidth)
+
+        # RSCN
+        if np.any(cn0 < RSCN_THRESHOLD):
+            noise_power = 2 * np.mean(np.abs(qp) ** 2, axis=0)
+            total_power = np.mean(np.abs(ip + qp) ** 2, axis=0)
+
+            snr = np.abs((total_power - noise_power) / noise_power)
+            cn0 = 10 * np.log10(snr * bandwidth)
+
+        if np.any(cn0 < ZERO_THRESHOLD):
+            cn0 = np.zeros_like(cn0)  # reduces R variability in low cn0 regimes
+
+        self.cn0 = cn0
+
+        # reset buffers
+        self.__ip_cn0_buff = []
+        self.__qp_cn0_buff = []
 
     def __compute_ss_covariance(self):
         DIFFERENCE_THRESHOLD = 1e-4
@@ -377,8 +396,8 @@ class VDFLL:
 
     def __discriminate(self):
         # code discriminator
-        e_envelope = np.sqrt(self.__ie**2 + self.__qe**2)
-        l_envelope = np.sqrt(self.__il**2 + self.__ql**2)
+        e_envelope = np.sqrt(self.ie**2 + self.qe**2)
+        l_envelope = np.sqrt(self.il**2 + self.ql**2)
         chip_error = (
             (1 - self.tap_spacing)
             * (e_envelope - l_envelope)
@@ -386,8 +405,8 @@ class VDFLL:
         )
 
         # subcorrelators
-        split_ip = np.array_split(self.__sub_ip, 2)
-        split_qp = np.array_split(self.__sub_qp, 2)
+        split_ip = np.array_split(self.subip, 2)
+        split_qp = np.array_split(self.subqp, 2)
 
         first_ip = np.mean(split_ip[0], axis=0)
         first_qp = np.mean(split_qp[0], axis=0)
@@ -401,6 +420,49 @@ class VDFLL:
 
         return chip_error, ferror
 
+    def __update_emitters(self, epoch_emitters: list):
+        self.__new_emitters = set(epoch_emitters) - set(self.emitters)
+        self.__removed_emitters = set(self.emitters) - set(epoch_emitters)
+        self.__removed_indices = [
+            self.emitters.index(emitter) for emitter in self.__removed_emitters
+        ]
+
+        self.emitters = epoch_emitters
+
+    def __update_cn0_buffers(self, ip: np.ndarray, qp: np.ndarray):
+        if self.__removed_emitters:
+            self.cn0 = np.delete(self.cn0, self.__removed_indices)
+
+            ip_cn0_buff = nt.pad_list(self.__ip_cn0_buff).T
+            qp_cn0_buff = nt.pad_list(self.__qp_cn0_buff).T
+
+            new_ip_cn0_buff = np.delete(ip_cn0_buff, self.__removed_indices, axis=0).T
+            new_qp_cn0_buff = np.delete(qp_cn0_buff, self.__removed_indices, axis=0).T
+
+            self.__ip_cn0_buff = new_ip_cn0_buff.tolist()
+            self.__qp_cn0_buff = new_qp_cn0_buff.tolist()
+
+        self.__ip_cn0_buff.append(ip)
+        self.__qp_cn0_buff.append(qp)
+
     def __log_by_emitter(self, data: np.ndarray, log: defaultdict):
         for idx, emitter in enumerate(self.__emitter_states.values()):
             log[(emitter.constellation, emitter.id)].append(data[idx])
+
+
+@njit(cache=True)
+def compute_prange_residual_var(cn0: np.ndarray, T: float, chip_length: float):
+    cn0 = 10 ** (cn0 / 10)
+    var = chip_length**2 * (1 / (2 * T**2 * cn0**2) + 1 / (4 * T * cn0))
+
+    return var
+
+
+@njit(cache=True)
+def compute_prange_rate_residual_var(cn0: np.ndarray, T: float, wavelength: float):
+    cn0 = 10 ** (cn0 / 10)
+    var = (wavelength / (np.pi * T)) ** 2 * (
+        2 / ((T) ** 2 * cn0**2) + 2 / ((T) * cn0)
+    )
+
+    return var

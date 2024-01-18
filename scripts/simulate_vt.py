@@ -1,23 +1,45 @@
 import numpy as np
 import navsim as ns
+import navtools as nt
 
 from tqdm import tqdm
 from pathlib import Path
-from eleventh_hour.data import process_vdfll_states
+from navtools.conversions import ecef2lla
+from dataclasses import dataclass
+from datetime import datetime
+from collections import defaultdict
+from eleventh_hour.data import (
+    process_states,
+    process_covariances,
+    Errors,
+    States,
+    Covariances,
+)
+import matplotlib.pyplot as plt
 from eleventh_hour.trajectories import prepare_trajectories
-from eleventh_hour.navigators.vt import VDFLL, VDFLLConfiguration
+from eleventh_hour.navigators import VDFLLConfiguration, ChannelErrors, Correlators
+from eleventh_hour.navigators.vt import VDFLL
+from eleventh_hour.plot import (
+    geoplot,
+    skyplot,
+    plot_states,
+    plot_errors,
+    plot_covariances,
+    plot_channel_errors,
+    plot_correlators,
+)
 
 # sim parameters
 TRAJECTORY = "daytona_500_sdx_1s_loop"
 IS_STATIC = False
-IS_EMITTER_TYPE_TRUTH = False
+IS_EMITTER_TYPE_TRUTH = True
 
 # vdfll parameters
-PROCESS_NOISE_SIGMA = 50
+PROCESS_NOISE_SIGMA = 80
 CORRELATOR_BUFF_SIZE = 20
 TAP_SPACING = 0.5
 NORM_INNOVATION_THRESH = 2.5
-NSUBCORRELATORS = 4
+NSUBCORRELATORS = 10
 
 # plot parameters
 SKYPLOT_PERIOD = 5  # [s]
@@ -27,6 +49,18 @@ PROJECT_PATH = Path(__file__).parents[1]
 CONFIG_PATH = PROJECT_PATH / "conf"
 DATA_PATH = PROJECT_PATH / "data"
 TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
+
+
+@dataclass(frozen=True)
+class SimulationResults:
+    states: States
+    errors: Errors
+    covariances: Covariances
+    channel_errors: ChannelErrors
+    correlators: Correlators
+    true_chip_error: dict
+    true_prange_error: dict
+    true_ferror: dict
 
 
 def setup_simulation(disable_progress: bool = False):
@@ -69,26 +103,28 @@ def simulate(
         emitter_states = sim_emitter_states.ephemeris
 
     # navigator setup
-    rx_pos0 = sim_rx_states.pos[0]
-    rx_vel0 = sim_rx_states.vel[0]
-    rx_clock_bias0 = sim_rx_states.clock_bias[0]
-    rx_clock_drift0 = sim_rx_states.clock_drift[0]
+    pos0 = sim_rx_states.pos[0]
+    lla0 = np.array(ecef2lla(x=pos0[0], y=pos0[1], z=pos0[2]))
+    vel0 = sim_rx_states.vel[0]
+    clock_bias0 = sim_rx_states.clock_bias[0]
+    clock_drift0 = sim_rx_states.clock_drift[0]
     cn0 = np.array([emitter.cn0 for emitter in sim_observables[0].values()])
     rx_clock_type = conf.errors.rx_clock
     tap_spacings = [0, TAP_SPACING, -TAP_SPACING]
 
     vdfll_conf = VDFLLConfiguration(
-        process_noise_sigma=PROCESS_NOISE_SIGMA,
+        proc_noise_sigma=PROCESS_NOISE_SIGMA,
         tap_spacing=TAP_SPACING,
-        norm_innovation_thresh=NORM_INNOVATION_THRESH,
-        correlator_buff_size=CORRELATOR_BUFF_SIZE,
-        rx_pos=rx_pos0,
-        rx_vel=rx_vel0,
-        rx_clock_bias=rx_clock_bias0,
-        rx_clock_drift=rx_clock_drift0,
+        ni_threshold=NORM_INNOVATION_THRESH,
+        cn0_buff_size=CORRELATOR_BUFF_SIZE,
+        rx_pos=pos0,
+        rx_vel=vel0,
+        rx_clock_bias=clock_bias0,
+        rx_clock_drift=clock_drift0,
         cn0=cn0,
         rx_clock_type=rx_clock_type,
-        signal_properties=signal_properties,
+        sig_properties=signal_properties,
+        T=1 / conf.time.fsim,
     )
     vdfll = VDFLL(conf=vdfll_conf)
 
@@ -99,7 +135,6 @@ def simulate(
         desc="[eleventh-hour] simulating correlators",
         disable=disable_progress,
     ):
-        vdfll.time_update(T=1 / conf.time.fsim)
         est_pranges, est_prange_rates = vdfll.predict_observables(
             emitter_states=emitter_states[epoch]
         )
@@ -117,17 +152,43 @@ def simulate(
         vdfll.update_correlator_buffers(
             prompt=correlators[0], early=correlators[1], late=correlators[2]
         )
-        vdfll.cn0 = np.array([emitter.cn0 for emitter in observables.values()])
         vdfll.loop_closure()
+        vdfll.log_rx_state()
+        vdfll.log_covariance()
+
+        vdfll.time_update(T=1 / conf.time.fsim)
 
     # process results
-    states, errors = process_vdfll_states(
-        truth=sim_rx_states, rx_states=vdfll.rx_states
+    lla = np.array(
+        ecef2lla(
+            x=sim_rx_states.pos.T[0],
+            y=sim_rx_states.pos.T[1],
+            z=sim_rx_states.pos.T[2],
+        )
     )
+    states, errors = process_states(truth=sim_rx_states, rx_states=vdfll.rx_states)
+    covariances = process_covariances(
+        time=states.time, cov=vdfll.covariances, lat=lla[0], lon=lla[1]
+    )
+
+    true_chip_error = corr_sim.chip_errors
+    true_prange_error = corr_sim.code_prange_errors
+    true_ferror = corr_sim.ferrors
     channel_errors = vdfll.channel_errors
     correlators = vdfll.correlators
 
-    return states, errors, channel_errors, correlators
+    results = SimulationResults(
+        states=states,
+        errors=errors,
+        covariances=covariances,
+        channel_errors=channel_errors,
+        correlators=correlators,
+        true_chip_error=true_chip_error,
+        true_prange_error=true_prange_error,
+        true_ferror=true_ferror,
+    )
+
+    return results, sim_emitter_states.truth
 
 
 # private
@@ -149,23 +210,57 @@ def __generate_truth(
 
 if __name__ == "__main__":
     conf, meas_sim, corr_sim = setup_simulation()
-    simulate(conf=conf, meas_sim=meas_sim, corr_sim=corr_sim)
+    results, truth_emitter_states = simulate(
+        conf=conf, meas_sim=meas_sim, corr_sim=corr_sim
+    )
 
-    # plot
-    #     now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
-    #     output_dir = (
-    #         DATA_PATH
-    #         / "figures"
-    #         / f"{now}_VT_SingleRun_{TRAJECTORY}_{int(conf.time.duration)}s_{conf.time.fsim}Hz"
-    #     )
-    #     output_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
+    output_dir = (
+        DATA_PATH / "figures" / f"{now}_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    #     plot(
-    #         truth_rx_states=sim_rx_states,
-    #         truth_emitter_states=sim_emitter_states.truth[
-    #             :: SKYPLOT_PERIOD * conf.time.fsim
-    #         ],
-    #         vdfll=vdfll,
-    #         dop=sim_emitter_states.dop,
-    #         output_dir=output_dir,
-    #     )
+    # TODO: clean this nonsense
+
+    plt.close()
+    plt.figure()
+    azimuth = defaultdict(lambda: defaultdict(lambda: []))
+    elevation = defaultdict(lambda: defaultdict(lambda: []))
+
+    for epoch in truth_emitter_states:
+        for emitter in epoch.values():
+            azimuth[emitter.constellation][emitter.id].append(emitter.az)
+            elevation[emitter.constellation][emitter.id].append(emitter.el)
+
+    for constellation in azimuth.keys():
+        az = np.array(nt.pad_list(list(azimuth[constellation].values())))
+        el = np.array(nt.pad_list(list(elevation[constellation].values())))
+        names = list(azimuth[constellation].keys())
+
+        skyplot(
+            az=az,
+            el=el,
+            label=constellation,
+            deg=False,
+        )
+
+    plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
+    plt.tight_layout()
+    plt.savefig(fname=output_dir / "skyplot")
+
+    geoplot(
+        lat=results.states.truth_lla[0],
+        lon=results.states.truth_lla[1],
+        output_dir=output_dir,
+    )
+    plot_states(states=results.states, output_dir=output_dir)
+    plot_errors(errors=results.errors, output_dir=output_dir)
+    plot_covariances(cov=results.covariances, output_dir=output_dir)
+    plot_channel_errors(
+        time=results.states.time,
+        channel_errors=results.channel_errors,
+        output_dir=output_dir,
+    )
+    plot_correlators(
+        time=results.states.time, correlators=results.correlators, output_dir=output_dir
+    )

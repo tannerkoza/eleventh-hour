@@ -15,12 +15,12 @@ from shapely.geometry import LineString
 from urllib.request import urlopen, Request
 from cartopy.mpl.geoaxes import GeoAxes
 from collections.abc import Iterable
+from pathlib import Path
+from eleventh_hour.data import Errors, States, Covariances
+from eleventh_hour.navigators import ChannelErrors, Correlators
 
 
-MARKER = itertools.cycle(("o", "v", "^", "<", ">", "s", "8", "p"))
-
-
-def geoplot(lat, lon, tiles="satellite", **kwargs):
+def geoplot(lat, lon, tiles="satellite", output_dir: Path = None, **kwargs):
     match tiles:
         case "map":
             cimgt.OSM.get_image = __image_spoof
@@ -61,6 +61,9 @@ def geoplot(lat, lon, tiles="satellite", **kwargs):
     gl.right_labels = False
     gl.xformatter = ct.mpl.gridliner.LONGITUDE_FORMATTER
     gl.yformatter = ct.mpl.gridliner.LATITUDE_FORMATTER
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "geoplot")
 
     return ax
 
@@ -176,10 +179,307 @@ def skyplot(
     return ax
 
 
-def plot_emitter_dataframe(x_data: np.ndarray, df: pd.DataFrame, **kwargs):
-    for constellation, emitter in df:
-        y_data = df[constellation][emitter]
-        plt.plot(x_data, y_data, marker=next(MARKER), **kwargs)
+def plot_states(states: States, output_dir: Path = None):
+    # trajectory
+    plt.figure()
+    plt.plot(states.truth_enu_pos[0], states.truth_enu_pos[1], label="truth")
+    plt.plot(states.enu_pos[0], states.enu_pos[1], label="vdfll")
+    plt.xlabel("East [m]")
+    plt.ylabel("North [m]")
+    plt.legend()
+    ax = plt.gca()
+    ax.axis("equal")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "trajectory")
+
+    # position
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    titles = ["East", "North", "Up"]
+    for index, (ax, title) in enumerate(zip(axes, titles)):
+        ax.plot(states.time, states.truth_enu_pos[index], label="truth")
+        ax.plot(states.time, states.enu_pos[index], label="vdfll")
+        ax.set_title(title)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels)
+    fig.supxlabel("Time [s]")
+    fig.supylabel("Position [m]")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "pos")
+
+    # velocity
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    titles = ["East", "North", "Up"]
+    for index, (ax, title) in enumerate(zip(axes, titles)):
+        ax.plot(states.time, states.truth_enu_vel[index], label="truth")
+        ax.plot(states.time, states.enu_vel[index], label="vdfll")
+        ax.set_title(title)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels)
+    fig.supxlabel("Time [s]")
+    fig.supylabel("Velocity [m/s]")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "vel")
+
+    # clock bias
+    plt.figure()
+    plt.plot(states.time, states.truth_clock_bias, label="truth")
+    plt.plot(states.time, states.clock_bias, label="vdfll")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Clock Bias [m]")
+    plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cb")
+
+    # clock drift
+    plt.figure()
+    plt.plot(states.time, states.truth_clock_drift, label="truth")
+    plt.plot(states.time, states.clock_drift, label="vdfll")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Clock Drift [m/s]")
+    plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cd")
+
+
+def plot_covariances(cov: Covariances, output_dir: Path = None):
+    # position
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    titles = ["East", "North", "Up"]
+    for index, (ax, title) in enumerate(zip(axes, titles)):
+        ax.plot(cov.time, np.sqrt(cov.pos[index]), label="vdfll")
+        ax.set_title(title)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels)
+    fig.supxlabel("Time [s]")
+    fig.supylabel("Position $\\sigma$ [m]")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "pos_cov")
+
+    # velocity
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    titles = ["East", "North", "Up"]
+    for index, (ax, title) in enumerate(zip(axes, titles)):
+        ax.plot(cov.time, np.sqrt(cov.vel[index]), label="vdfll")
+        ax.set_title(title)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels)
+    fig.supxlabel("Time [s]")
+    fig.supylabel("Velocity $\\sigma$ [m/s]")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "vel_cov")
+
+    # clock bias
+    plt.figure()
+    plt.plot(cov.time, np.sqrt(cov.clock_bias), label="vdfll")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Clock Bias $\\sigma$ [m]")
+    plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cb_cov")
+
+    # clock drift
+    plt.figure()
+    plt.plot(cov.time, np.sqrt(cov.clock_drift), label="vdfll")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Clock Drift $\\sigma$ [m/s]")
+    plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cd_cov")
+
+
+def plot_errors(errors: Errors, output_dir: Path = None):
+    POS_ERROR_BOUNDS = 100
+    VEL_ERROR_BOUNDS = 20
+
+    # position error
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True)
+    titles = ["East", "North", "Up"]
+    for index, (ax, title) in enumerate(zip(axes, titles)):
+        ax.plot(errors.time, errors.pos[index], label="vdfll")
+        if np.max(np.abs(errors.pos)) > POS_ERROR_BOUNDS:
+            ax.set_ylim(bottom=-POS_ERROR_BOUNDS, top=POS_ERROR_BOUNDS)
+        ax.set_title(title)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels)
+    fig.supxlabel("Time [s]")
+    fig.supylabel("Position Error [m]")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "pos_error")
+
+    # velocity error
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True)
+    titles = ["East", "North", "Up"]
+    for index, (ax, title) in enumerate(zip(axes, titles)):
+        ax.plot(errors.time, errors.vel[index], label="vdfll")
+        if np.max(np.abs(errors.vel)) > VEL_ERROR_BOUNDS:
+            ax.set_ylim(bottom=-VEL_ERROR_BOUNDS, top=VEL_ERROR_BOUNDS)
+        ax.set_title(title)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels)
+    fig.supxlabel("Time [s]")
+    fig.supylabel("Velocity Error [m/s]")
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "vel_error")
+
+    # clock bias error
+    plt.figure()
+    plt.plot(errors.time, errors.clock_bias, label="vdfll")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Clock Bias Error [m]")
+    plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cb_error")
+
+    # clock drift error
+    plt.figure()
+    plt.plot(errors.time, errors.clock_drift, label="vdfll")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Clock Drift Error [m/s]")
+    plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cd_error")
+
+
+def plot_channel_errors(
+    time: np.ndarray, channel_errors: ChannelErrors, output_dir: Path = None
+):
+    LEGEND_NEMITTERS_THRESH = 15
+
+    chip_df = pd.DataFrame(
+        {key: pd.Series(value) for key, value in channel_errors.chip.items()}
+    )
+    frequency_df = pd.DataFrame(
+        {key: pd.Series(value) for key, value in channel_errors.freq.items()}
+    )
+    prange_df = pd.DataFrame(
+        {key: pd.Series(value) for key, value in channel_errors.prange.items()}
+    )
+    prange_rate_df = pd.DataFrame(
+        {key: pd.Series(value) for key, value in channel_errors.prange_rate.items()}
+    )
+
+    nemitters = chip_df.columns.droplevel().size
+    is_legend_plotted = nemitters <= LEGEND_NEMITTERS_THRESH
+
+    # chip discriminator
+    plt.figure()
+    plt.plot(time, chip_df.to_numpy(), label=chip_df.columns.droplevel())
+    plt.xlabel("Time [s]")
+    plt.ylabel("Chip Error [chips]")
+    if is_legend_plotted:
+        plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "chip_disc")
+
+    # frequency discriminator
+    plt.figure()
+    plt.plot(
+        time,
+        frequency_df.to_numpy(),
+        label=frequency_df.columns.droplevel(),
+    )
+    plt.xlabel("Time [s]")
+    plt.ylabel("Frequency Error [Hz]")
+    if is_legend_plotted:
+        plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "freq_disc")
+
+    # pseudorange discriminator
+    plt.figure()
+    plt.plot(time, prange_df.to_numpy(), label=prange_df.columns.droplevel())
+    plt.xlabel("Time [s]")
+    plt.ylabel("Pseudorange Error [m]")
+    if is_legend_plotted:
+        plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "prange_disc")
+
+    # pseudorange rate discriminator
+    plt.figure()
+    plt.plot(
+        time,
+        prange_rate_df.to_numpy(),
+        label=prange_rate_df.columns.droplevel(),
+    )
+    plt.xlabel("Time [s]")
+    plt.ylabel("Pseudorange Rate Error [m/s]")
+    if is_legend_plotted:
+        plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "prange_rate_disc")
+
+
+def plot_correlators(
+    time: np.ndarray, correlators: Correlators, output_dir: Path = None
+):
+    LEGEND_NEMITTERS_THRESH = 15
+
+    ip_df = pd.DataFrame(
+        {key: pd.Series(value) for key, value in correlators.ip.items()}
+    )
+    qp_df = pd.DataFrame(
+        {key: pd.Series(value) for key, value in correlators.qp.items()}
+    )
+
+    nemitters = ip_df.columns.droplevel().size
+    is_legend_plotted = nemitters <= LEGEND_NEMITTERS_THRESH
+
+    # post-integration signal power
+    signal_power = 10 * np.log10(
+        np.sqrt(ip_df.to_numpy() ** 2 + qp_df.to_numpy() ** 2) ** 2
+    )
+
+    plt.figure()
+    plt.plot(time, signal_power, label=ip_df.columns.droplevel())
+    plt.xlabel("Time [s]")
+    plt.ylabel("Post-Integration Signal Power [dB]")
+    if is_legend_plotted:
+        plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "pdi_power")
 
 
 # def plot(
