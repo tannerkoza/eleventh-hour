@@ -27,6 +27,7 @@ from eleventh_hour.plot import (
     plot_covariances,
     plot_channel_errors,
     plot_correlators,
+    plot_cn0s,
 )
 
 # sim parameters
@@ -36,7 +37,7 @@ IS_EMITTER_TYPE_TRUTH = True
 
 # vdfll parameters
 PROCESS_NOISE_SIGMA = 80
-CORRELATOR_BUFF_SIZE = 20
+CORRELATOR_BUFF_SIZE = 50
 TAP_SPACING = 0.5
 NORM_INNOVATION_THRESH = 2.5
 NSUBCORRELATORS = 10
@@ -58,6 +59,7 @@ class SimulationResults:
     covariances: Covariances
     channel_errors: ChannelErrors
     correlators: Correlators
+    cn0s: dict
     true_chip_error: dict
     true_prange_error: dict
     true_ferror: dict
@@ -155,6 +157,7 @@ def simulate(
         vdfll.loop_closure()
         vdfll.log_rx_state()
         vdfll.log_covariance()
+        vdfll.log_cn0()
 
         vdfll.time_update(T=1 / conf.time.fsim)
 
@@ -176,6 +179,7 @@ def simulate(
     true_ferror = corr_sim.ferrors
     channel_errors = vdfll.channel_errors
     correlators = vdfll.correlators
+    cn0s = vdfll.cn0s
 
     results = SimulationResults(
         states=states,
@@ -183,6 +187,7 @@ def simulate(
         covariances=covariances,
         channel_errors=channel_errors,
         correlators=correlators,
+        cn0s=cn0s,
         true_chip_error=true_chip_error,
         true_prange_error=true_prange_error,
         true_ferror=true_ferror,
@@ -264,3 +269,4 @@ if __name__ == "__main__":
     plot_correlators(
         time=results.states.time, correlators=results.correlators, output_dir=output_dir
     )
+    plot_cn0s(time=results.states.time, cn0s=results.cn0s, output_dir=output_dir)

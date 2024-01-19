@@ -85,6 +85,9 @@ class VDFLL:
         self.__subip = defaultdict(lambda: [])
         self.__subqp = defaultdict(lambda: [])
 
+        # cn0
+        self.__cn0s = defaultdict(lambda: [])
+
     # properties
     @property
     def rx_states(self):
@@ -128,6 +131,12 @@ class VDFLL:
             subqp=dict(self.__subqp),
         )
         return correlators
+
+    @property
+    def cn0s(self):
+        cn0s = dict(self.__cn0s)
+
+        return cn0s
 
     # public
     def time_update(self, T: float):
@@ -265,6 +274,9 @@ class VDFLL:
     def log_covariance(self):
         self.__covariances.append(self.P)
 
+    def log_cn0(self):
+        self.__log_by_emitter(data=self.cn0, log=self.__cn0s)
+
     # private
     def __compute_A(self):
         xyzclock_A = np.array([[1, self.T], [0, 1]])
@@ -344,18 +356,19 @@ class VDFLL:
         self.wavelength = np.array(wavelength)
 
     def __estimate_cn0(self):
-        ZERO_THRESHOLD = 10
+        ZERO_THRESHOLD = 18
         RSCN_THRESHOLD = 22
 
         # pad list to account for new or removed satellites
         ip = nt.pad_list(input_list=self.__ip_cn0_buff)
         qp = nt.pad_list(input_list=self.__qp_cn0_buff)
+        p = np.sqrt(ip**2 + qp**2)  # needed because not tracking phase
 
         bandwidth = 1 / self.T
 
         # Beaulieu
-        latest_buffer = ip[1:, :]
-        previous_buffer = ip[:-1, :]
+        latest_buffer = p[1:, :]
+        previous_buffer = p[:-1, :]
 
         noise_power = (np.abs(latest_buffer) - np.abs(previous_buffer)) ** 2
         data_power = 0.5 * (latest_buffer**2 + previous_buffer**2)
@@ -364,14 +377,19 @@ class VDFLL:
 
         # RSCN
         if np.any(cn0 < RSCN_THRESHOLD):
-            noise_power = 2 * np.mean(np.abs(qp) ** 2, axis=0)
-            total_power = np.mean(np.abs(ip + qp) ** 2, axis=0)
+            noise_power = np.mean(
+                (np.abs(latest_buffer) - np.abs(previous_buffer)) ** 2, axis=0
+            )
+            total_power = np.mean(p**2, axis=0)
 
             snr = np.abs((total_power - noise_power) / noise_power)
-            cn0 = 10 * np.log10(snr * bandwidth)
+            rscn_cn0 = 10 * np.log10(snr * bandwidth)
+            cn0 = np.where(cn0 < RSCN_THRESHOLD, rscn_cn0, cn0)
 
+        # reduces R variability poor cn0 estimation regimes
         if np.any(cn0 < ZERO_THRESHOLD):
-            cn0 = np.zeros_like(cn0)  # reduces R variability in low cn0 regimes
+            zero_cn0 = np.zeros_like(cn0)
+            cn0 = np.where(cn0 < ZERO_THRESHOLD, zero_cn0, cn0)
 
         self.cn0 = cn0
 

@@ -111,6 +111,12 @@ def simulate(
             est_prange_rates=est_prange_rates,
         )
         correlators = corr_sim.correlate(include_subcorrelators=False)
+        corr_sim.compute_errors(
+            observables=observables,
+            est_pranges=est_pranges,
+            est_prange_rates=est_prange_rates,
+        )
+        correlators = corr_sim.correlate(include_subcorrelators=False)
 
     return
 
