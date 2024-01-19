@@ -482,6 +482,26 @@ def plot_correlators(
         plt.savefig(output_dir / "pdi_power")
 
 
+def plot_cn0s(time: np.ndarray, cn0s: dict, output_dir: Path = None):
+    LEGEND_NEMITTERS_THRESH = 15
+
+    cn0s_df = pd.DataFrame({key: pd.Series(value) for key, value in cn0s.items()})
+
+    nemitters = cn0s_df.columns.droplevel().size
+    is_legend_plotted = nemitters <= LEGEND_NEMITTERS_THRESH
+
+    plt.figure()
+    plt.plot(time, cn0s_df.to_numpy(), label=cn0s_df.columns.droplevel())
+    plt.xlabel("Time [s]")
+    plt.ylabel("Estimated $C/N_{0}$ [dB-Hz]")
+    if is_legend_plotted:
+        plt.legend()
+    plt.tight_layout()
+
+    if output_dir is not None:
+        plt.savefig(output_dir / "cn0s")
+
+
 # def plot(
 #     truth_rx_states: ns.ReceiverTruthStates,
 #     truth_emitter_states: list,
