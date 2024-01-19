@@ -29,14 +29,8 @@ def prepare_trajectories(file_path: str | Path, fsim: float):
         ]
     )
 
-    bs = BSpline(t=file_time, c=ecef_pos, k=2, axis=0)
-    rx_pos = bs(sim_time)
-    rx_vel = np.diff(rx_pos, axis=0, append=rx_pos[-1].reshape(1, -1)) / sim_T
-    # rx_vel = cs(sim_time, 1)
-
-    # chs = CubicHermiteSpline(x=file_time, y=ecef_pos, dydx=ecef_vel)
-
-    # rx_pos = chs(sim_time)
-    # rx_vel = chs(sim_time, 1)
+    cs = CubicSpline(x=file_time, y=ecef_pos)
+    rx_pos = cs(sim_time)
+    rx_vel = cs(sim_time, 1)
 
     return rx_pos, rx_vel
