@@ -1,8 +1,7 @@
-import pickle
 import numpy as np
 import navsim as ns
+import pandas as pd
 
-from pathlib import Path
 from numpy import sin, cos
 from dataclasses import dataclass
 from eleventh_hour.navigators import ReceiverStates
@@ -189,10 +188,5 @@ def process_covariances(
     return covariances
 
 
-def pickle_objects(data: dict, output_path: Path):
-    for name, obj in data.items():
-        file_name = f"{name}.pkl"
-        output_file = output_path / file_name
-
-        with open(output_file, "+bw") as file:
-            pickle.dump(obj=obj, file=file)
+def create_padded_df(data: dict):
+    return pd.DataFrame({key: pd.Series(value) for key, value in data.items()})

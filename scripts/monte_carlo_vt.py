@@ -5,11 +5,12 @@ import simulate_vt as vt
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
-from eleventh_hour.data import pickle_objects
+from collections import defaultdict
+from eleventh_hour.data import create_padded_df
 
 # sim parameters
 NSIMS = 100
-JS = np.arange(0, 5, 5, dtype=float)
+JS = np.arange(0, 45, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -22,7 +23,9 @@ MC_PATH = DATA_PATH / "monte_carlos"
 
 def monte_carlo():
     conf, meas_sim, corr_sim = vt.setup_simulation(disable_progress=DISABLE_PROGRESS)
-    mc_dir = create_sim_dir(conf=conf)
+    output_dir = create_sim_dir(conf=conf)
+
+    mc_results = defaultdict(lambda: [])
 
     for js in JS:
         # set current js
@@ -30,28 +33,65 @@ def monte_carlo():
             if constellation in INTERFERED_CONSTELLATIONS:
                 properties.js = js
 
-        js_path = mc_dir / f"js{int(js)}"
-
         # perform monte carlos
-        for sim in tqdm(range(NSIMS), desc=f"simulating with {js} dB J/S"):
-            states, errors, channel_errors, correlators = vt.simulate(
+        for _ in tqdm(range(NSIMS), desc=f"simulating with {js} dB J/S"):
+            results, _ = vt.simulate(
                 conf=conf,
                 meas_sim=meas_sim,
                 corr_sim=corr_sim,
                 disable_progress=DISABLE_PROGRESS,
             )
-            data = {
-                "states": states,
-                "errors": errors,
-                "channel_errors": channel_errors,
-                "correlators": correlators,
-            }
-            output_path = js_path / f"sim{sim}"
-            output_path.mkdir(parents=True, exist_ok=True)
-
-            pickle_objects(data=data, output_path=output_path)
+            mc_results = process_sim_results(results=results, mc_results=mc_results)
 
             meas_sim.clear_observables()
+            corr_sim.clear_errors()
+
+        results = process_mc_results(time=results.states.time, mc_results=mc_results)
+        np.savez_compressed(output_dir / f"js{int(js)}", **results)
+
+
+def process_sim_results(results: vt.SimulationResults, mc_results: dict):
+    chip_error = create_padded_df(data=results.true_chip_error)
+    prange_error = create_padded_df(data=results.true_prange_error)
+    ferror = create_padded_df(data=results.true_ferror)
+
+    mean_ptrack = np.mean(np.abs(chip_error.to_numpy()[-1]) < 0.5)
+    mean_chip_error = np.mean(np.abs(chip_error.to_numpy()), axis=1)
+    mean_prange_error = np.mean(np.abs(prange_error.to_numpy()), axis=1)
+    mean_ferror = np.mean(np.abs(ferror.to_numpy()), axis=1)
+
+    mc_results["ptrack"].append(mean_ptrack)
+    mc_results["chip_error"].append(mean_chip_error)
+    mc_results["prange_error"].append(mean_prange_error)
+    mc_results["ferror"].append(mean_ferror)
+
+    mc_results["pos_error"].append(results.errors.pos)
+    mc_results["vel_error"].append(results.errors.vel)
+    mc_results["cb_error"].append(results.errors.clock_bias)
+    mc_results["cd_error"].append(results.errors.clock_drift)
+
+    mc_results["pos_cov"].append(results.covariances.pos)
+    mc_results["vel_cov"].append(results.covariances.vel)
+    mc_results["cb_cov"].append(results.covariances.clock_bias)
+    mc_results["cd_cov"].append(results.covariances.clock_drift)
+
+    return mc_results
+
+
+def process_mc_results(time: np.ndarray, mc_results: dict):
+    results = defaultdict()
+    results["time"] = time
+
+    for key, value in mc_results.items():
+        new_key = f"mean_{key}"
+        mean_value = np.mean(value, axis=0)
+        results[new_key] = mean_value
+
+        new_key = f"var_{key}"
+        var_value = np.var(value, axis=0)
+        results[new_key] = var_value
+
+    return dict(results)
 
 
 def create_sim_dir(conf: ns.SignalConfiguration):

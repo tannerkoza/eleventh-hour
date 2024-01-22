@@ -15,12 +15,12 @@ IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
-POS_SPACINGS = [0.5, 5]
-BIAS_SPACINGS = [0.5, 5]
-POSTIME_NSTATES = [3, 7]
-VEL_SPACINGS = [1, 5]
+POS_SPACINGS = [0.5]
+BIAS_SPACINGS = [0.5]
+POSTIME_NSTATES = [7]
+VEL_SPACINGS = [2, 5]
 DRIFT_SPACINGS = [0.25, 0.75]
-VELDRIFT_NSTATES = [3, 7]
+VELDRIFT_NSTATES = [7, 3]
 
 # plot parameters
 SKYPLOT_PERIOD = 5  # [s]
@@ -120,7 +120,7 @@ def simulate(
         )
 
         # limits number of correlations evaluated for speed
-        dpe.filter_grids(true_states=true_states, errbuff_pct=10000, is_filtered=True)
+        dpe.filter_grids(true_states=true_states, errbuff_pct=1000, is_filtered=True)
 
         # current estimate observables
         rx_est_pranges, rx_est_prange_rates = dpe.predict_rx_observables(
@@ -156,10 +156,16 @@ def simulate(
 
         dpe.log_rx_state()
 
-    states = dpe.rx_states
-    err = states.pos - sim_rx_states.pos.T
+        dpe.time_update()
 
-    plt.plot(err.T)
+    states = dpe.rx_states
+    perr = states.pos - sim_rx_states.pos.T
+    verr = states.vel - sim_rx_states.vel.T
+
+    plt.figure()
+    plt.plot(perr.T)
+    plt.figure()
+    plt.plot(verr.T)
     plt.show()
 
 

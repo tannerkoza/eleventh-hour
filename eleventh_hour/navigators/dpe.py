@@ -1,6 +1,7 @@
 import numpy as np
 import navsim as ns
 import navtools as nt
+import scipy.linalg as linalg
 
 from itertools import product
 from collections import defaultdict
@@ -152,6 +153,9 @@ class DirectPositioning:
         errbuff_pct: float = 0.0,
         is_filtered: bool = False,
     ):
+        MIN_PBERROR = 0.5
+        MIN_VDERROR = 0.25
+
         # set grids
         self.__set_pbgrid()
         self.__set_vdgrid()
@@ -160,17 +164,20 @@ class DirectPositioning:
             true_pberror = np.abs(self.rx_state[:4] - true_states[:4])
             true_vderror = np.abs(self.rx_state[4:] - true_states[4:])
 
+            pberror = (
+                true_pberror if np.any(true_pberror > MIN_PBERROR) else MIN_PBERROR
+            )
+            vderror = (
+                true_vderror if np.any(true_vderror > MIN_VDERROR) else MIN_VDERROR
+            )
+
             pbgrid_errors = np.abs(self.rx_state[:4] - self.pbgrid)
             vdgrid_errors = np.abs(self.rx_state[4:] - self.vdgrid)
 
             errbuff_pct = errbuff_pct / 100 + 1.0
-            valid_pb = np.all(
-                pbgrid_errors <= errbuff_pct * true_pberror, axis=1
-            ).nonzero()
+            valid_pb = np.all(pbgrid_errors <= errbuff_pct * pberror, axis=1).nonzero()
             print(f"npbstates: {len(valid_pb[0])}")
-            valid_vd = np.all(
-                vdgrid_errors <= errbuff_pct * true_vderror, axis=1
-            ).nonzero()
+            valid_vd = np.all(vdgrid_errors <= errbuff_pct * vderror, axis=1).nonzero()
             print(f"nvdstates: {len(valid_vd[0])}")
 
             self.pbgrid = self.pbgrid[valid_pb]
@@ -201,7 +208,7 @@ class DirectPositioning:
         vd = np.sum(norm_weights * self.vdgrid.T, axis=-1)
 
         residuals = self.vdgrid - vd
-        # self.veldrift_cov = self.__compute_covariance(
+        # self.vdcov = self.__compute_covariance(
         #     residuals=residuals, weights=norm_weights
         # )
         self.rx_state[4:] = vd
@@ -222,6 +229,38 @@ class DirectPositioning:
 
         # cartesian product of grid offsets
         self.vdgrid_enu = np.array(list(product(*enudrift_deltas))).T
+
+    def time_update(self):
+        # state transition & process covariance
+        self.__compute_A()
+
+        rx_state = np.array(
+            [
+                self.rx_state[0],
+                self.rx_state[4],
+                self.rx_state[1],
+                self.rx_state[5],
+                self.rx_state[2],
+                self.rx_state[6],
+                self.rx_state[3],
+                self.rx_state[7],
+            ]
+        )
+
+        rx_state = self.A @ rx_state
+
+        self.rx_state = np.array(
+            [
+                rx_state[0],
+                rx_state[2],
+                rx_state[4],
+                rx_state[6],
+                rx_state[1],
+                rx_state[3],
+                rx_state[5],
+                rx_state[7],
+            ]
+        )
 
     def log_rx_state(self):
         self.__rx_states.append(self.rx_state.copy())
@@ -311,3 +350,7 @@ class DirectPositioning:
         self.vdgrid = (
             np.vstack([vgrid_ecef, self.vdgrid_enu[3]]) + self.rx_state[4:, np.newaxis]
         ).T
+
+    def __compute_A(self):
+        xyzclock_A = np.array([[1, self.T], [0, 1]])
+        self.A = linalg.block_diag(xyzclock_A, xyzclock_A, xyzclock_A, xyzclock_A)
