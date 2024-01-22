@@ -356,13 +356,15 @@ class VDFLL:
         self.wavelength = np.array(wavelength)
 
     def __estimate_cn0(self):
-        ZERO_THRESHOLD = 18
+        ONE_THRESHOLD = 18
         RSCN_THRESHOLD = 22
 
         # pad list to account for new or removed satellites
         ip = nt.pad_list(input_list=self.__ip_cn0_buff)
         qp = nt.pad_list(input_list=self.__qp_cn0_buff)
+
         p = np.sqrt(ip**2 + qp**2)  # needed because not tracking phase
+        p = np.ma.array(p, mask=np.isnan(p))  # mask nans to make calculations valid
 
         bandwidth = 1 / self.T
 
@@ -387,9 +389,9 @@ class VDFLL:
             cn0 = np.where(cn0 < RSCN_THRESHOLD, rscn_cn0, cn0)
 
         # reduces R variability poor cn0 estimation regimes
-        if np.any(cn0 < ZERO_THRESHOLD):
-            zero_cn0 = np.zeros_like(cn0)
-            cn0 = np.where(cn0 < ZERO_THRESHOLD, zero_cn0, cn0)
+        if np.any(cn0 < ONE_THRESHOLD):
+            one_cn0 = np.ones_like(cn0)
+            cn0 = np.where(cn0 < ONE_THRESHOLD, one_cn0, cn0)
 
         self.cn0 = cn0
 

@@ -1,8 +1,9 @@
 import numpy as np
-from navtools.signals import bpsk_correlator
 
-a = np.array([20,23, 25,56,75])
-b = np.array([18,23, 25,56,75])
+a = np.atleast_3d(np.array([[1, 2, 3, 4], [1, 2, 3, 4]]))
+print(a.shape)
+est = np.array([1, 2, 3, 4])
 
-c = np.where(a < 22, b, a)
-print(c)
+b = a - est
+cov = np.outer(a, a)
+print(cov)

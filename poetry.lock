@@ -1304,7 +1304,7 @@ scipy = "^1.11.4"
 type = "git"
 url = "https://github.com/navsquad/navtools.py.git"
 reference = "main"
-resolved_reference = "fbb7cb323126c74d8df53ace34f25d528937e9b6"
+resolved_reference = "92ae4b560699b8604bd9ca1c3f17cfe5668927c6"
 
 [[package]]
 name = "ncompress"
@@ -2499,6 +2499,20 @@ numpy = "*"
 sgp4 = ">=2.2"
 
 [[package]]
+name = "snakeviz"
+version = "2.2.0"
+description = "A web-based viewer for Python profiler output"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "snakeviz-2.2.0-py2.py3-none-any.whl", hash = "sha256:569e2d71c47f80a886aa6e70d6405cb6d30aa3520969ad956b06f824c5f02b8e"},
+    {file = "snakeviz-2.2.0.tar.gz", hash = "sha256:7bfd00be7ae147eb4a170a471578e1cd3f41f803238958b6b8efcf2c698a6aa9"},
+]
+
+[package.dependencies]
+tornado = ">=2.0"
+
+[[package]]
 name = "stack-data"
 version = "0.6.3"
 description = "Extract data from python stack frames and tracebacks for informative displays"
@@ -2726,4 +2740,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "626fc50b359fa67b8d26fa05369c2b715230da476ead81034d32bf684df9c925"
+content-hash = "a34741615be34c2f8683db53b5e595a5ada84d48da63096ea13fdc42d0964d1f"

@@ -63,6 +63,7 @@ def geoplot(lat, lon, tiles="satellite", output_dir: Path = None, **kwargs):
     gl.yformatter = ct.mpl.gridliner.LATITUDE_FORMATTER
 
     if output_dir is not None:
+        plt.tight_layout()
         plt.savefig(output_dir / "geoplot")
 
     return ax
@@ -255,32 +256,32 @@ def plot_states(states: States, output_dir: Path = None):
 
 def plot_covariances(cov: Covariances, output_dir: Path = None):
     # position
-    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharey=True, sharex=True)
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
-        ax.plot(cov.time, np.sqrt(cov.pos[index]), label="vdfll")
+        ax.plot(cov.time, 3 * np.sqrt(cov.pos[index]), label="vdfll")
         ax.set_title(title)
 
     handles, labels = plt.gca().get_legend_handles_labels()
     fig.legend(handles, labels)
     fig.supxlabel("Time [s]")
-    fig.supylabel("Position $\\sigma$ [m]")
+    fig.supylabel("Position 3-$\\sigma$ [m]")
     plt.tight_layout()
 
     if output_dir is not None:
         plt.savefig(output_dir / "pos_cov")
 
     # velocity
-    fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharey=True, sharex=True)
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
-        ax.plot(cov.time, np.sqrt(cov.vel[index]), label="vdfll")
+        ax.plot(cov.time, 3 * np.sqrt(cov.vel[index]), label="vdfll")
         ax.set_title(title)
 
     handles, labels = plt.gca().get_legend_handles_labels()
     fig.legend(handles, labels)
     fig.supxlabel("Time [s]")
-    fig.supylabel("Velocity $\\sigma$ [m/s]")
+    fig.supylabel("Velocity 3-$\\sigma$ [m/s]")
     plt.tight_layout()
 
     if output_dir is not None:
@@ -288,9 +289,9 @@ def plot_covariances(cov: Covariances, output_dir: Path = None):
 
     # clock bias
     plt.figure()
-    plt.plot(cov.time, np.sqrt(cov.clock_bias), label="vdfll")
+    plt.plot(cov.time, 3 * np.sqrt(cov.clock_bias), label="vdfll")
     plt.xlabel("Time [s]")
-    plt.ylabel("Clock Bias $\\sigma$ [m]")
+    plt.ylabel("Clock Bias 3-$\\sigma$ [m]")
     plt.legend()
     plt.tight_layout()
 
@@ -299,9 +300,9 @@ def plot_covariances(cov: Covariances, output_dir: Path = None):
 
     # clock drift
     plt.figure()
-    plt.plot(cov.time, np.sqrt(cov.clock_drift), label="vdfll")
+    plt.plot(cov.time, 3 * np.sqrt(cov.clock_drift), label="vdfll")
     plt.xlabel("Time [s]")
-    plt.ylabel("Clock Drift $\\sigma$ [m/s]")
+    plt.ylabel("Clock Drift 3-$\\sigma$ [m/s]")
     plt.legend()
     plt.tight_layout()
 
@@ -310,7 +311,7 @@ def plot_covariances(cov: Covariances, output_dir: Path = None):
 
 
 def plot_errors(errors: Errors, output_dir: Path = None):
-    POS_ERROR_BOUNDS = 100
+    POS_ERROR_BOUNDS = 150
     VEL_ERROR_BOUNDS = 20
 
     # position error
@@ -500,198 +501,3 @@ def plot_cn0s(time: np.ndarray, cn0s: dict, output_dir: Path = None):
 
     if output_dir is not None:
         plt.savefig(output_dir / "cn0s")
-
-
-# def plot(
-#     truth_rx_states: ns.ReceiverTruthStates,
-#     truth_emitter_states: list,
-#     vdfll: VDFLL,
-#     dop: np.ndarray,
-#     output_dir: Path,
-# ):
-#     sns.set_context("paper")
-
-#     # unpack data
-#     azimuth = defaultdict(lambda: defaultdict(lambda: []))
-#     elevation = defaultdict(lambda: defaultdict(lambda: []))
-
-#     for epoch in truth_emitter_states:
-#         for emitter in epoch.values():
-#             azimuth[emitter.constellation][emitter.id].append(emitter.az)
-#             elevation[emitter.constellation][emitter.id].append(emitter.el)
-
-
-#     vdfll_pos = np.array(
-#         pm.ecef2enu(
-#             x=vdfll.rx_states.x_pos,
-#             y=vdfll.rx_states.y_pos,
-#             z=vdfll.rx_states.z_pos,
-#             lat0=lla0[0],
-#             lon0=lla0[1],
-#             h0=lla0[2],
-#         )
-#     )
-#     vdfll_vel = np.array(
-#         pm.ecef2enuv(
-#             u=vdfll.rx_states.x_vel,
-#             v=vdfll.rx_states.y_vel,
-#             w=vdfll.rx_states.z_vel,
-#             lat0=lla0[0],
-#             lon0=lla0[1],
-#         )
-#     )
-#     vdfll_cb = vdfll.rx_states.clock_bias
-#     vdfll_cd = vdfll.rx_states.clock_drfit
-
-#     pos_error = truth_pos.T - vdfll_pos.T
-#     vel_error = truth_vel.T - vdfll_vel.T
-#     cb_error = truth_rx_states.clock_bias - vdfll_cb
-#     cd_error = truth_rx_states.clock_drift - vdfll_cd
-
-#     ip = vdfll.pad_log(log=[epoch.ip for epoch in vdfll.correlators])
-#     qp = vdfll.pad_log(log=[epoch.qp for epoch in vdfll.correlators])
-
-#     gdop = []
-#     pdop = []
-#     hdop = []
-#     vdop = []
-#     for epoch in dop:
-#         diag = np.diag(epoch)
-#         gdop.append(np.linalg.norm(diag))
-#         pdop.append(np.linalg.norm(diag[:3]))
-#         hdop.append(np.linalg.norm(diag[:2]))
-#         vdop.append(diag[2])
-
-#     gdop = np.array(gdop)
-#     pdop = np.array(pdop)
-#     hdop = np.array(hdop)
-#     vdop = np.array(vdop)
-
-#     # plot
-#     geoplot(lat=truth_lla[0], lon=truth_lla[1])
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "geoplot")
-
-#     for constellation in azimuth.keys():
-#         az = np.array(vdfll.pad_log(list(azimuth[constellation].values())))
-#         el = np.array(vdfll.pad_log(list(elevation[constellation].values())))
-#         names = list(azimuth[constellation].keys())
-
-#         skyplot(
-#             az=az,
-#             el=el,
-#             name=names,
-#             label=constellation,
-#             deg=False,
-#         )
-#     plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "skyplot")
-
-#     plt.figure()
-#     plt.title("DOP")
-#     plt.plot(truth_rx_states.time, gdop, label="gdop")
-#     plt.plot(truth_rx_states.time, pdop, label="pdop")
-#     plt.plot(truth_rx_states.time, hdop, label="hdop")
-#     plt.plot(truth_rx_states.time, vdop, label="vdop")
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("DOP")
-#     plt.legend()
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "dop")
-
-#     plt.figure()
-#     plt.title("Trajectory")
-#     plt.plot(truth_pos[0], truth_pos[1], label="truth", marker="*")
-#     plt.plot(vdfll_pos[0], vdfll_pos[1], label="vdfll", marker="*")
-#     plt.xlabel("East [m]")
-#     plt.ylabel("North [m]")
-#     plt.legend()
-#     ax = plt.gca()
-#     ax.axis("equal")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "trajectory")
-
-#     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
-#     fig.supxlabel("Time [s]")
-#     fig.supylabel("Position [m]")
-#     fig.suptitle("Position: East, North, Up")
-#     for index, ax in enumerate(axes):
-#         ax.plot(truth_rx_states.time, truth_pos[index], label="truth")
-#         ax.plot(truth_rx_states.time, vdfll_pos[index], label="vdfll")
-#     handles, labels = plt.gca().get_legend_handles_labels()
-#     fig.legend(handles, labels)
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "position")
-
-#     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
-#     fig.supxlabel("Time [s]")
-#     fig.supylabel("Velocity [m/s]")
-#     fig.suptitle("Velocity: East, North, Up")
-#     for index, ax in enumerate(axes):
-#         ax.plot(truth_rx_states.time, truth_vel[index], label="truth")
-#         ax.plot(truth_rx_states.time, vdfll_vel[index], label="vdfll")
-#     handles, labels = plt.gca().get_legend_handles_labels()
-#     fig.legend(handles, labels)
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "velocity")
-
-#     plt.figure()
-#     plt.title("Position Error [m]")
-#     plt.plot(truth_rx_states.time, pos_error, label=["east", "north", "up"])
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("Error [m]")
-#     plt.legend()
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "position_error")
-
-#     plt.figure()
-#     plt.title("Velocity Error [m/s]")
-#     plt.plot(truth_rx_states.time, vel_error, label=["east", "north", "up"])
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("Error [m/s]")
-#     plt.legend()
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "velocity_error")
-
-#     plt.figure()
-#     plt.title("Clock Bias Error [m]")
-#     plt.plot(truth_rx_states.time, cb_error)
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("Error [m]")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "cb_error")
-
-#     plt.figure()
-#     plt.title("Clock Drift Error [m/s]")
-#     plt.plot(truth_rx_states.time, cd_error)
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("Error [m/s]")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "cd_error")
-
-#     plt.figure()
-#     plt.title("Code Discriminator [m]")
-#     plot_emitter_dataframe(truth_rx_states.time, vdfll.prange_errors)
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("Error [m]")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "code_discriminator")
-
-#     plt.figure()
-#     plt.title("Frequency Discriminator [m/s]")
-#     plot_emitter_dataframe(truth_rx_states.time, vdfll.prange_rate_errors)
-#     plt.xlabel("Time [s]")
-#     plt.ylabel("Error [m/s]")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "f_discriminator")
-
-#     plt.figure()
-#     plt.title("Prompt Correlator Phasor")
-#     plt.plot(ip, qp, ".")
-#     plt.xlabel("Inphase Power")
-#     plt.ylabel("Quadrature Power")
-#     ax = plt.gca()
-#     ax.axis("equal")
-#     plt.tight_layout()
-#     plt.savefig(fname=output_dir / "prompt_corr_phasor")

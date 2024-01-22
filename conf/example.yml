@@ -1,9 +1,9 @@
 time:
   duration: 10.0 # [s]
   fsim: 50 # [Hz]
-  year: 2024
-  month: 1
-  day: 1
+  year: 2023
+  month: 12
+  day: 4
   second: 18
 
 constellations:
@@ -11,12 +11,12 @@ constellations:
   emitters:
     gps:
       signal: gpsl1ca
-      js: 0.0
+      js: 40.0
       correlator_model: bpsk
-    galileo:
-      signal: gpsl1ca
-      js: 0.0
-      correlator_model: bpsk
+    # galileo:
+    #   signal: gpsl1ca
+    #   js: 0.0
+    #   correlator_model: bpsk
     # orbcomm:
     #   signal: freedom
     #   js: 0.0
@@ -29,11 +29,10 @@ constellations:
     #   signal: freedom
     #   js: 0.0
     #   correlator_model: bpsk
-    oneweb:
-      signal: freedom
-      js: 0.0
-      correlator_model: bpsk
+    # oneweb:
+    #   signal: freedom
+    #   js: 0.0
+    #   correlator_model: bpsk
 
-errors:
-  rx_clock: "high_quality_txco"
-  ionosphere: "klobuchar"
+# errors:
+#   rx_clock: "high_quality_tcxo"

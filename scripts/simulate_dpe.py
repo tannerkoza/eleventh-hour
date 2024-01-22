@@ -7,18 +7,20 @@ from eleventh_hour.trajectories import prepare_trajectories
 from eleventh_hour.navigators import DirectPositioningConfiguration
 from eleventh_hour.navigators.dpe import DirectPositioning
 
+import matplotlib.pyplot as plt
+
 # sim parameters
 TRAJECTORY = "daytona_500_sdx_1s_loop"
 IS_STATIC = False
-IS_EMITTER_TYPE_TRUTH = False
+IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
-POS_SPACINGS = [7]
-BIAS_SPACINGS = [7]
-POSTIME_NSTATES = [1]
-VEL_SPACINGS = [0.7]
-DRIFT_SPACINGS = [0.25]
-VELDRIFT_NSTATES = [1]
+POS_SPACINGS = [0.5, 5]
+BIAS_SPACINGS = [0.5, 5]
+POSTIME_NSTATES = [3, 7]
+VEL_SPACINGS = [1, 5]
+DRIFT_SPACINGS = [0.25, 0.75]
+VELDRIFT_NSTATES = [3, 7]
 
 # plot parameters
 SKYPLOT_PERIOD = 5  # [s]
@@ -97,28 +99,68 @@ def simulate(
     dpe = DirectPositioning(conf=conf)
 
     # simulate
+    rx_states = []
     for epoch, observables in tqdm(
         enumerate(sim_observables),
         total=len(sim_observables),
         desc="[eleventh-hour] simulating correlators",
         disable=disable_progress,
     ):
-        dpe.predict_observables(emitter_states=emitter_states[epoch])
+        true_states = np.array(
+            [
+                sim_rx_states.pos[epoch][0],
+                sim_rx_states.pos[epoch][1],
+                sim_rx_states.pos[epoch][2],
+                sim_rx_states.clock_bias[epoch],
+                sim_rx_states.vel[epoch][0],
+                sim_rx_states.vel[epoch][1],
+                sim_rx_states.vel[epoch][2],
+                sim_rx_states.clock_drift[epoch],
+            ]
+        )
 
+        # limits number of correlations evaluated for speed
+        dpe.filter_grids(true_states=true_states, errbuff_pct=10000, is_filtered=True)
+
+        # current estimate observables
+        rx_est_pranges, rx_est_prange_rates = dpe.predict_rx_observables(
+            emitter_states=emitter_states[epoch]
+        )
+
+        # position & bias manifold
+        est_pranges, est_prange_rates = dpe.predict_grid_observables(
+            emitter_states=emitter_states[epoch]
+        )
         corr_sim.compute_errors(
             observables=observables,
             est_pranges=est_pranges,
-            est_prange_rates=est_prange_rates,
+            est_prange_rates=np.broadcast_to(rx_est_prange_rates, est_pranges.shape),
         )
-        correlators = corr_sim.correlate(include_subcorrelators=False)
+        pbcorr = corr_sim.correlate(include_subcorrelators=False)
+        dpe.estimate_pb(
+            inphase=pbcorr.inphase,
+            quadrature=pbcorr.quadrature,
+        )
+
+        # velocity & drift manifold
         corr_sim.compute_errors(
             observables=observables,
-            est_pranges=est_pranges,
+            est_pranges=np.broadcast_to(rx_est_pranges, est_prange_rates.shape),
             est_prange_rates=est_prange_rates,
         )
-        correlators = corr_sim.correlate(include_subcorrelators=False)
+        vdcorr = corr_sim.correlate(include_subcorrelators=False)
+        dpe.estimate_vd(
+            inphase=vdcorr.inphase,
+            quadrature=vdcorr.quadrature,
+        )
 
-    return
+        dpe.log_rx_state()
+
+    states = dpe.rx_states
+    err = states.pos - sim_rx_states.pos.T
+
+    plt.plot(err.T)
+    plt.show()
 
 
 # private
