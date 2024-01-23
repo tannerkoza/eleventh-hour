@@ -1,9 +1,11 @@
 import numpy as np
+from itertools import product
 
-a = np.atleast_3d(np.array([[1, 2, 3, 4], [1, 2, 3, 4]]))
-print(a.shape)
-est = np.array([1, 2, 3, 4])
+state = np.array([1, 0])
+P = np.array([[-5, 0, 5], [-10, 0, 10]]).T
 
-b = a - est
-cov = np.outer(a, a)
-print(cov)
+
+b = state + P
+# a = np.array(list(product(*b))).T
+
+print(b)

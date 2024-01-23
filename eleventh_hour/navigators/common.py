@@ -57,7 +57,7 @@ class VDFLLConfiguration(NavigatorConfiguration):
 
 
 @dataclass(frozen=True)
-class DirectPositioningConfiguration(NavigatorConfiguration):
+class DPEConfiguration(NavigatorConfiguration):
     # grids
     pos_spacings: list
     bias_spacings: list
@@ -65,3 +65,14 @@ class DirectPositioningConfiguration(NavigatorConfiguration):
     vel_spacings: list
     drift_spacings: list
     veldrift_nstates: list
+
+
+@dataclass(frozen=True)
+class DPESIRConfiguration(NavigatorConfiguration):
+    # tuning
+    nspheres: int
+    process_noise_sigma: float
+    pdelta: float = 7.0
+    vdelta: float = 2.5
+    bdelta: float = 7.0
+    ddelta: float = 0.5
