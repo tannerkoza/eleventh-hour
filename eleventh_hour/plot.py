@@ -1,23 +1,29 @@
 import io
-import itertools
 import numpy as np
-import cartopy as ct
-import cartopy.geodesic as cgeo
-import cartopy.crs as ccrs
-import cartopy.io.img_tiles as cimgt
-import matplotlib.pyplot as plt
-import matplotlib.patheffects as pe
 import pandas as pd
 
+import cartopy as ct
+import cartopy.crs as ccrs
+import cartopy.geodesic as cgeo
+import cartopy.io.img_tiles as cimgt
+
+import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
+
 from PIL import Image
-from planar import BoundingBox
-from shapely.geometry import LineString
-from urllib.request import urlopen, Request
-from cartopy.mpl.geoaxes import GeoAxes
-from collections.abc import Iterable
 from pathlib import Path
-from eleventh_hour.data import Errors, States, Covariances
-from eleventh_hour.navigators import ChannelErrors, Correlators
+from planar import BoundingBox
+from collections.abc import Iterable
+from shapely.geometry import LineString
+from cartopy.mpl.geoaxes import GeoAxes
+from urllib.request import urlopen, Request
+from eleventh_hour.navigators import (
+    ChannelErrors,
+    Correlators,
+    StateResults,
+    ErrorResults,
+    CovarianceResults,
+)
 
 
 def geoplot(lat, lon, tiles="satellite", output_dir: Path = None, **kwargs):
@@ -180,7 +186,7 @@ def skyplot(
     return ax
 
 
-def plot_states(states: States, output_dir: Path = None):
+def plot_states(states: StateResults, output_dir: Path = None):
     # trajectory
     plt.figure()
     plt.plot(states.truth_enu_pos[0], states.truth_enu_pos[1], label="truth")
@@ -254,7 +260,7 @@ def plot_states(states: States, output_dir: Path = None):
         plt.savefig(output_dir / "cd")
 
 
-def plot_covariances(cov: Covariances, output_dir: Path = None):
+def plot_covariances(cov: CovarianceResults, output_dir: Path = None):
     # position
     fig, axes = plt.subplots(nrows=3, ncols=1, sharey=True, sharex=True)
     titles = ["East", "North", "Up"]
@@ -310,7 +316,7 @@ def plot_covariances(cov: Covariances, output_dir: Path = None):
         plt.savefig(output_dir / "cd_cov")
 
 
-def plot_errors(errors: Errors, output_dir: Path = None):
+def plot_errors(errors: ErrorResults, output_dir: Path = None):
     POS_ERROR_BOUNDS = 150
     VEL_ERROR_BOUNDS = 20
 

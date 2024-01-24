@@ -7,10 +7,9 @@ from itertools import product
 from scipy.linalg import block_diag
 from navsim.error_models.clock import NavigationClock
 from navtools.constants import SPEED_OF_LIGHT
-from navtools.conversions import ecef2lla, enu2ecef, enu2uvw
 from eleventh_hour.navigators import (
     DPEConfiguration,
-    DPESIRConfiguration,
+    DPEConfiguration,
     ReceiverStates,
 )
 
@@ -37,8 +36,8 @@ def create_spread_grid(delta: float | list, nspheres: int | list, ntiles: int = 
     return grid
 
 
-class DirectPositioningSIR:
-    def __init__(self, conf: DPESIRConfiguration) -> None:
+class DirectPositioning:
+    def __init__(self, conf: DPEConfiguration) -> None:
         # tuning
         self.nspheres = conf.nspheres
         self.pdelta = conf.pdelta
@@ -46,6 +45,7 @@ class DirectPositioningSIR:
         self.bdelta = conf.bdelta
         self.ddelta = conf.ddelta
         self.process_noise_sigma = conf.process_noise_sigma
+        self.neff_percentage = conf.neff_percentage / 100
 
         # properties
         if conf.rx_clock_type is None:
@@ -76,6 +76,7 @@ class DirectPositioningSIR:
 
         # logging
         self.__rx_states = []
+        self.__covariances = []
         self.__particles = []
 
     @property
@@ -91,7 +92,7 @@ class DirectPositioningSIR:
         return rx_states
 
     @property
-    def rx_particles(self):
+    def particles(self):
         log = np.array(self.__particles)
         rx_states = ReceiverStates(
             pos=log[:, :6:2],
@@ -101,6 +102,12 @@ class DirectPositioningSIR:
         )
 
         return rx_states
+
+    @property
+    def covariances(self):
+        covariances = np.array(self.__covariances)
+
+        return covariances
 
     # public
     def time_update(self, T: float):
@@ -113,37 +120,27 @@ class DirectPositioningSIR:
         process_noise = np.random.multivariate_normal(
             mean=np.zeros_like(self.rx_state), cov=self.Q, size=self.nparticles
         ).T
-        self.particles = self.A @ self.particles + process_noise
+        self.epoch_particles = self.A @ self.epoch_particles + process_noise
 
-    def predict_observables(self, emitter_states: dict):
-        # extract current state
-        constellations = []
-        unit_vectors = []
-        ranges = []
-        range_rates = []
+    def predict_particle_observables(self, emitter_states: dict):
+        pranges, prange_rates = self.__predict_observables(
+            emitter_states=emitter_states,
+            rx_pos=self.epoch_particles[:6:2],
+            rx_vel=self.epoch_particles[1:7:2],
+            rx_clock_bias=self.epoch_particles[6],
+            rx_clock_drift=self.epoch_particles[7],
+        )
 
-        # geometric range & range rate determination
-        for emitter_state in emitter_states.values():
-            range, unit_vector = nt.compute_range_and_unit_vector(
-                rx_pos=self.particles[:6:2], emitter_pos=emitter_state.pos
-            )
-            range_rate = nt.compute_range_rate(
-                rx_vel=self.particles[1:7:2],
-                emitter_vel=emitter_state.vel,
-                unit_vector=unit_vector,
-            )
+        return pranges, prange_rates
 
-            constellations.append(emitter_state.constellation)
-            ranges.append(range)
-            unit_vectors.append(unit_vector)
-            range_rates.append(range_rate)
-
-        # observable prediction
-        # TODO: add group delay/drift from emitter states
-        pranges = np.array(ranges) + self.particles[6]
-        prange_rates = np.array(range_rates) + self.particles[7]
-
-        self.channel_systems = np.array(constellations)
+    def predict_estimate_observables(self, emitter_states: dict):
+        pranges, prange_rates = self.__predict_observables(
+            emitter_states=emitter_states,
+            rx_pos=self.rx_state[:6:2],
+            rx_vel=self.rx_state[1:7:2],
+            rx_clock_bias=self.rx_state[6],
+            rx_clock_drift=self.rx_state[7],
+        )
 
         return pranges, prange_rates
 
@@ -163,19 +160,22 @@ class DirectPositioningSIR:
 
         power = np.sum(sys_powers, axis=0) ** 2
         self.weights = power / np.sum(power)
-        self.rx_state = np.sum(self.weights * self.particles, axis=-1)
+        self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
 
-        residuals = self.particles.T - self.rx_state
+        self.covariance = np.cov(self.epoch_particles, aweights=self.weights)
 
         neff = 1 / np.sum(self.weights**2)
-        if neff < (1 / 2) * self.nparticles:
+        if neff < self.neff_percentage * self.nparticles:
             self.__resample_particles()
 
     def log_rx_state(self):
         self.__rx_states.append(self.rx_state.copy())
 
+    def log_covariance(self):
+        self.__covariances.append(self.covariance.copy())
+
     def log_particles(self):
-        self.__particles.append(self.particles.copy())
+        self.__particles.append(self.epoch_particles.copy())
 
     # private
     def __init_particles(self):
@@ -194,7 +194,7 @@ class DirectPositioningSIR:
         )
         deltas = np.hstack((np.zeros_like(self.rx_state)[..., np.newaxis], deltas))
 
-        self.particles = rx_state + deltas
+        self.epoch_particles = rx_state + deltas
 
     def __compute_A(self):
         xyzclock_A = np.array([[1, self.T], [0, 1]])
@@ -224,21 +224,47 @@ class DirectPositioningSIR:
 
     def __resample_particles(self):
         # multinomial
-        q = np.cumsum(self.weights)
+        q = np.broadcast_to(np.cumsum(self.weights), (self.nparticles, self.nparticles))
         u = np.random.uniform(0, 1, size=self.nparticles)
 
-        indices = np.array([np.argmax(q >= value) for value in u])
+        indices = np.argmax(q >= u[..., np.newaxis], axis=1)
 
-        self.particles = self.particles[:, indices]
+        self.epoch_particles = self.epoch_particles[:, indices]
         self.weights = np.ones_like(self.weights) / self.nparticles
 
-    def __compute_covariance(self, residuals: np.ndarray, weights: np.ndarray):
-        covs = []
+    def __predict_observables(
+        self,
+        emitter_states: dict,
+        rx_pos: np.ndarray,
+        rx_vel: np.ndarray,
+        rx_clock_bias: np.ndarray,
+        rx_clock_drift: np.ndarray,
+    ):
+        # extract current state
+        constellations = []
+        ranges = []
+        range_rates = []
 
-        for wgt, res in zip(weights, residuals):
-            cov = np.outer(res, res)
-            covs.append(wgt * cov)
+        # geometric range & range rate determination
+        for emitter_state in emitter_states.values():
+            range, unit_vector = nt.compute_range_and_unit_vector(
+                rx_pos=rx_pos, emitter_pos=emitter_state.pos
+            )
+            range_rate = nt.compute_range_rate(
+                rx_vel=rx_vel,
+                emitter_vel=emitter_state.vel,
+                unit_vector=unit_vector,
+            )
 
-        cov = np.sum(covs, axis=0)
+            constellations.append(emitter_state.constellation)
+            ranges.append(range)
+            range_rates.append(range_rate)
 
-        return cov
+        # observable prediction
+        # TODO: add group delay/drift from emitter states
+        pranges = np.array(ranges) + rx_clock_bias
+        prange_rates = np.array(range_rates) + rx_clock_drift
+
+        self.channel_systems = np.array(constellations)
+
+        return pranges, prange_rates

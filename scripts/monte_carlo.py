@@ -1,16 +1,18 @@
 import numpy as np
 import navsim as ns
 import simulate_vt as vt
+import simulate_dpe as dpe
 
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
-from eleventh_hour.data import create_padded_df
+from eleventh_hour.navigators import create_padded_df
 
 # sim parameters
-NSIMS = 100
-JS = np.arange(0, 45, 5, dtype=float)
+NAVIGATOR = "dpe"
+NSIMS = 10
+JS = np.arange(0, 5, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -35,12 +37,22 @@ def monte_carlo():
 
         # perform monte carlos
         for _ in tqdm(range(NSIMS), desc=f"simulating with {js} dB J/S"):
-            results, _ = vt.simulate(
-                conf=conf,
-                meas_sim=meas_sim,
-                corr_sim=corr_sim,
-                disable_progress=DISABLE_PROGRESS,
-            )
+            match NAVIGATOR.casefold():
+                case "vp":
+                    results, _ = vt.simulate(
+                        conf=conf,
+                        meas_sim=meas_sim,
+                        corr_sim=corr_sim,
+                        disable_progress=DISABLE_PROGRESS,
+                    )
+                case "dpe":
+                    results = dpe.simulate(
+                        conf=conf,
+                        meas_sim=meas_sim,
+                        corr_sim=corr_sim,
+                        disable_progress=DISABLE_PROGRESS,
+                    )
+
             mc_results = process_sim_results(results=results, mc_results=mc_results)
 
             meas_sim.clear_observables()
@@ -51,19 +63,22 @@ def monte_carlo():
 
 
 def process_sim_results(results: vt.SimulationResults, mc_results: dict):
-    chip_error = create_padded_df(data=results.true_chip_error)
-    prange_error = create_padded_df(data=results.true_prange_error)
-    ferror = create_padded_df(data=results.true_ferror)
+    chip_error = create_padded_df(data=results.chip_errors)
+    ferror = create_padded_df(data=results.ferrors)
+    prange_error = create_padded_df(data=results.prange_errors)
+    prange_rate_error = create_padded_df(data=results.prange_rate_errors)
 
     mean_ptrack = np.mean(np.abs(chip_error.gps.to_numpy()[-1]) < 0.5)
     mean_chip_error = np.mean(np.abs(chip_error.gps.to_numpy()), axis=1)
-    mean_prange_error = np.mean(np.abs(prange_error.gps.to_numpy()), axis=1)
     mean_ferror = np.mean(np.abs(ferror.gps.to_numpy()), axis=1)
+    mean_prange_error = np.mean(np.abs(prange_error.gps.to_numpy()), axis=1)
+    mean_prange_rate_error = np.mean(np.abs(prange_rate_error.gps.to_numpy()), axis=1)
 
     mc_results["ptrack"].append(mean_ptrack)
     mc_results["chip_error"].append(mean_chip_error)
-    mc_results["prange_error"].append(mean_prange_error)
     mc_results["ferror"].append(mean_ferror)
+    mc_results["prange_error"].append(mean_prange_error)
+    mc_results["prange_rate_error"].append(mean_prange_rate_error)
 
     mc_results["pos_error"].append(results.errors.pos)
     mc_results["vel_error"].append(results.errors.vel)
@@ -103,7 +118,7 @@ def process_mc_results(time: np.ndarray, mc_results: dict):
 def create_sim_dir(conf: ns.SignalConfiguration):
     now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
 
-    dir_name = f"{now}_VT_MonteCarlo_{vt.TRAJECTORY}_{int(conf.time.duration)}s_{int(conf.time.fsim)}Hz"
+    dir_name = f"{now}_{NAVIGATOR.upper()}_MonteCarlo_{vt.TRAJECTORY}_{int(conf.time.duration)}s_{int(conf.time.fsim)}Hz"
     sim_dir = MC_PATH / dir_name
 
     sim_dir.mkdir(parents=True, exist_ok=True)

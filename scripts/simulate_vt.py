@@ -1,24 +1,19 @@
 import numpy as np
 import navsim as ns
 import navtools as nt
+import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from pathlib import Path
-from navtools.conversions import ecef2lla
-from dataclasses import dataclass
 from datetime import datetime
 from collections import defaultdict
-from eleventh_hour.data import (
-    process_states,
-    process_covariances,
-    Errors,
-    States,
-    Covariances,
-)
-import matplotlib.pyplot as plt
-from eleventh_hour.trajectories import prepare_trajectories
-from eleventh_hour.navigators import VDFLLConfiguration, ChannelErrors, Correlators
+
+from eleventh_hour.navigators import *
+from navtools.conversions import ecef2lla
+
 from eleventh_hour.navigators.vt import VDFLL
+from eleventh_hour.trajectories import prepare_trajectories
+from eleventh_hour.navigators import VDFLLConfiguration
 from eleventh_hour.plot import (
     geoplot,
     skyplot,
@@ -50,19 +45,6 @@ PROJECT_PATH = Path(__file__).parents[1]
 CONFIG_PATH = PROJECT_PATH / "conf"
 DATA_PATH = PROJECT_PATH / "data"
 TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
-
-
-@dataclass(frozen=True)
-class SimulationResults:
-    states: States
-    errors: Errors
-    covariances: Covariances
-    channel_errors: ChannelErrors
-    correlators: Correlators
-    cn0s: dict
-    true_chip_error: dict
-    true_prange_error: dict
-    true_ferror: dict
 
 
 def setup_simulation(disable_progress: bool = False):
@@ -106,7 +88,6 @@ def simulate(
 
     # navigator setup
     pos0 = sim_rx_states.pos[0]
-    lla0 = np.array(ecef2lla(x=pos0[0], y=pos0[1], z=pos0[2]))
     vel0 = sim_rx_states.vel[0]
     clock_bias0 = sim_rx_states.clock_bias[0]
     clock_drift0 = sim_rx_states.clock_drift[0]
@@ -114,7 +95,7 @@ def simulate(
     rx_clock_type = conf.errors.rx_clock
     tap_spacings = [0, TAP_SPACING, -TAP_SPACING]
 
-    vdfll_conf = VDFLLConfiguration(
+    conf = VDFLLConfiguration(
         proc_noise_sigma=PROCESS_NOISE_SIGMA,
         tap_spacing=TAP_SPACING,
         ni_threshold=NORM_INNOVATION_THRESH,
@@ -128,7 +109,7 @@ def simulate(
         sig_properties=signal_properties,
         T=1 / conf.time.fsim,
     )
-    vdfll = VDFLL(conf=vdfll_conf)
+    vdfll = VDFLL(conf=conf)
 
     # simulate
     for epoch, observables in tqdm(
@@ -146,6 +127,8 @@ def simulate(
             est_pranges=est_pranges,
             est_prange_rates=est_prange_rates,
         )
+        corr_sim.log_errors()
+
         correlators = [
             corr_sim.correlate(tap_spacing=tap_spacing, nsubcorrelators=NSUBCORRELATORS)
             for tap_spacing in tap_spacings
@@ -155,11 +138,13 @@ def simulate(
             prompt=correlators[0], early=correlators[1], late=correlators[2]
         )
         vdfll.loop_closure()
+
+        # logging
         vdfll.log_rx_state()
         vdfll.log_covariance()
         vdfll.log_cn0()
 
-        vdfll.time_update(T=1 / conf.time.fsim)
+        vdfll.time_update(T=conf.T)
 
     # process results
     lla = np.array(
@@ -169,28 +154,24 @@ def simulate(
             z=sim_rx_states.pos.T[2],
         )
     )
-    states, errors = process_states(truth=sim_rx_states, rx_states=vdfll.rx_states)
-    covariances = process_covariances(
+    states, errors = process_state_results(
+        truth=sim_rx_states, rx_states=vdfll.rx_states
+    )
+    covariances = process_covariance_results(
         time=states.time, cov=vdfll.covariances, lat=lla[0], lon=lla[1]
     )
-
-    true_chip_error = corr_sim.chip_errors
-    true_prange_error = corr_sim.code_prange_errors
-    true_ferror = corr_sim.ferrors
-    channel_errors = vdfll.channel_errors
-    correlators = vdfll.correlators
-    cn0s = vdfll.cn0s
 
     results = SimulationResults(
         states=states,
         errors=errors,
         covariances=covariances,
-        channel_errors=channel_errors,
-        correlators=correlators,
-        cn0s=cn0s,
-        true_chip_error=true_chip_error,
-        true_prange_error=true_prange_error,
-        true_ferror=true_ferror,
+        chip_errors=corr_sim.chip_errors,
+        ferrors=corr_sim.ferrors,
+        prange_errors=corr_sim.code_prange_errors,
+        prange_rate_errors=corr_sim.prange_rate_errors,
+        cn0s=vdfll.cn0s,
+        channel_errors=vdfll.channel_errors,
+        correlators=vdfll.correlators,
     )
 
     return results, sim_emitter_states.truth
@@ -221,7 +202,9 @@ if __name__ == "__main__":
 
     now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
     output_dir = (
-        DATA_PATH / "figures" / f"{now}_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
+        DATA_PATH
+        / "figures"
+        / f"{now}_VP_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 

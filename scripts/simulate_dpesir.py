@@ -5,8 +5,8 @@ import navtools as nt
 from tqdm import tqdm
 from pathlib import Path
 from eleventh_hour.trajectories import prepare_trajectories
-from eleventh_hour.navigators import DPESIRConfiguration
-from eleventh_hour.navigators.dpe import DirectPositioningSIR
+from eleventh_hour.navigators import DPEConfiguration
+from eleventh_hour.navigators.dpe import DirectPositioning
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -80,7 +80,7 @@ def simulate(
     cn0 = np.array([emitter.cn0 for emitter in sim_observables[0].values()])
     rx_clock_type = conf.errors.rx_clock
 
-    conf = DPESIRConfiguration(
+    conf = DPEConfiguration(
         nspheres=NSPHERES,
         pdelta=PDELTA,
         vdelta=VDELTA,
@@ -97,7 +97,7 @@ def simulate(
         sig_properties=signal_properties,
     )
 
-    dpe = DirectPositioningSIR(conf=conf)
+    dpe = DirectPositioning(conf=conf)
 
     # simulate
     rx_states = []
@@ -108,7 +108,7 @@ def simulate(
         disable=disable_progress,
     ):
         dpe.log_particles()
-        est_pranges, est_prange_rates = dpe.predict_observables(
+        est_pranges, est_prange_rates = dpe.__predict_observables(
             emitter_states=emitter_states[epoch]
         )
 
@@ -124,7 +124,7 @@ def simulate(
         dpe.time_update(T=conf.T)
 
     states = dpe.rx_states
-    particles = dpe.rx_particles
+    particles = dpe.epoch_particles
     perr = states.pos - sim_rx_states.pos.T
     verr = states.vel - sim_rx_states.vel.T
 

@@ -1,8 +1,8 @@
 import numpy as np
 
 from pathlib import Path
+from scipy.interpolate import CubicSpline
 from navtools.conversions import lla2ecef
-from scipy.interpolate import CubicSpline, CubicHermiteSpline, BSpline
 
 
 def prepare_trajectories(file_path: str | Path, fsim: float):
@@ -19,15 +19,6 @@ def prepare_trajectories(file_path: str | Path, fsim: float):
     sim_time = np.arange(0, file_time[-1] + sim_T, sim_T)
 
     ecef_pos = np.array(lla2ecef(lat=lat, lon=lon, alt=alt)).T
-    two_point_ecef_vel = (
-        np.diff(ecef_pos, axis=0, append=ecef_pos[-1].reshape(1, -1)) / file_T
-    )
-    ecef_vel = 0.5 * np.array(
-        [
-            sum(two_point_ecef_vel[current : current + 2])
-            for current in range(0, len(two_point_ecef_vel), 1)
-        ]
-    )
 
     cs = CubicSpline(x=file_time, y=ecef_pos)
     rx_pos = cs(sim_time)
