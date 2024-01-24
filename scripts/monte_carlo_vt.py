@@ -9,8 +9,8 @@ from collections import defaultdict
 from eleventh_hour.data import create_padded_df
 
 # sim parameters
-NSIMS = 100
-JS = np.arange(0, 45, 5, dtype=float)
+NSIMS = 10
+JS = np.arange(0, 5, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -55,10 +55,10 @@ def process_sim_results(results: vt.SimulationResults, mc_results: dict):
     prange_error = create_padded_df(data=results.true_prange_error)
     ferror = create_padded_df(data=results.true_ferror)
 
-    mean_ptrack = np.mean(np.abs(chip_error.to_numpy()[-1]) < 0.5)
-    mean_chip_error = np.mean(np.abs(chip_error.to_numpy()), axis=1)
-    mean_prange_error = np.mean(np.abs(prange_error.to_numpy()), axis=1)
-    mean_ferror = np.mean(np.abs(ferror.to_numpy()), axis=1)
+    mean_ptrack = np.mean(np.abs(chip_error.gps.to_numpy()[-1]) < 0.5)
+    mean_chip_error = np.mean(np.abs(chip_error.gps.to_numpy()), axis=1)
+    mean_prange_error = np.mean(np.abs(prange_error.gps.to_numpy()), axis=1)
+    mean_ferror = np.mean(np.abs(ferror.gps.to_numpy()), axis=1)
 
     mc_results["ptrack"].append(mean_ptrack)
     mc_results["chip_error"].append(mean_chip_error)
@@ -90,6 +90,12 @@ def process_mc_results(time: np.ndarray, mc_results: dict):
         new_key = f"var_{key}"
         var_value = np.var(value, axis=0)
         results[new_key] = var_value
+
+        if "error" in key:
+            new_key = f"rms_{key}"
+            value = np.array(value)
+            rms_value = np.sqrt(np.mean(value**2, axis=-1))
+            results[new_key] = rms_value
 
     return dict(results)
 
