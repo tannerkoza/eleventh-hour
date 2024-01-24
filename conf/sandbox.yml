@@ -1,5 +1,5 @@
 time:
-  duration: 60.0 # [s]
+  duration: 100.0 # [s]
   fsim: 50 # [Hz]
   year: 2023
   month: 12
@@ -11,6 +11,10 @@ constellations:
   emitters:
     gps:
       signal: gpsl1ca
+      js: 46.0
+      correlator_model: bpsk
+    iridium-next:
+      signal: auburn
       js: 0.0
       correlator_model: bpsk
 

@@ -1,5 +1,6 @@
 import numpy as np
 import navsim as ns
+import navtools as nt
 
 from tqdm import tqdm
 from pathlib import Path
@@ -17,8 +18,8 @@ IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
 NSPHERES = 200
-PDELTA = 1.5
-VDELTA = 0.5
+PDELTA = 7.5
+VDELTA = 5.5
 BDELTA = 1.5
 DDELTA = 0.25
 PROCESS_NOISE_SIGMA = 10
@@ -162,29 +163,57 @@ def __generate_truth(
 def pf_animation(particles, truth, rx, T, frames):
     fig, ax = plt.subplots()
 
-    particles = particles.pos[:, :2]
-    truth = truth.pos
-    rx = rx.pos.T
+    lla0 = nt.ecef2lla(truth.pos[0, 0], truth.pos[0, 1], truth.pos[0, 2])
+    particles = np.array(
+        nt.ecef2enu(
+            x=particles.pos[:, 0],
+            y=particles.pos[:, 1],
+            z=particles.pos[:, 2],
+            lat0=lla0.lat,
+            lon0=lla0.lon,
+            alt0=lla0.alt,
+        )
+    )
+    truth = np.array(
+        nt.ecef2enu(
+            x=truth.pos[:, 0],
+            y=truth.pos[:, 1],
+            z=truth.pos[:, 2],
+            lat0=lla0.lat,
+            lon0=lla0.lon,
+            alt0=lla0.alt,
+        )
+    ).T
+    rx = np.array(
+        nt.ecef2enu(
+            x=rx.pos[:, 0],
+            y=rx.pos[:, 1],
+            z=rx.pos[:, 2],
+            lat0=lla0.lat,
+            lon0=lla0.lon,
+            alt0=lla0.alt,
+        )
+    ).T
 
-    part = ax.scatter(particles[0, 0], particles[0, 1], c="b", s=5, label="particles")
-    t = ax.plot(truth[0, 0], truth[0, 1], "*", label="truth")[0]
-    r = ax.plot(rx[0, 0], truth[0, 1], "*", label="rx")[0]
+    part = ax.scatter(particles[0, 0], particles[1, 0], c="b", s=5, label="particles")
+    # t = ax.plot(truth[0, 0], truth[0, 1], "g*", label="truth")[0]
+    # r = ax.plot(rx[0, 0], rx[0, 1], "*", label="rx")[0]
     ax.legend()
 
     def update(frame):
         # for each frame, update the data stored on each artist.
-        x = particles[frame, 0]
-        y = particles[frame, 1]
-        # update the scatter plot:
+        x = particles[0, frame]
+        y = particles[1, frame]
+        # # update the scatter plot:
         data = np.stack([x, y]).T
         part.set_offsets(data)
         # update the line plot:
-        t.set_xdata(truth[frame, 0])
-        t.set_ydata(truth[frame, 1])
-        r.set_xdata(rx[frame, 0])
-        r.set_ydata(rx[frame, 1])
+        # t.set_xdata(truth[frame, 0])
+        # t.set_ydata(truth[frame, 1])
+        # r.set_xdata(rx[frame, 0])
+        # r.set_ydata(rx[frame, 1])
 
-        return (part, t, r)
+        return part
 
     ani = animation.FuncAnimation(fig=fig, func=update, interval=T, frames=frames)
     plt.show()
