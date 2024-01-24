@@ -9,8 +9,8 @@ from collections import defaultdict
 from eleventh_hour.data import create_padded_df
 
 # sim parameters
-NSIMS = 10
-JS = np.arange(0, 5, 5, dtype=float)
+NSIMS = 100
+JS = np.arange(0, 45, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -47,7 +47,7 @@ def monte_carlo():
             corr_sim.clear_errors()
 
         results = process_mc_results(time=results.states.time, mc_results=mc_results)
-        np.savez_compressed(output_dir / f"js{int(js)}", **results)
+        np.savez_compressed(output_dir / f"js{int(js):02}", **results)
 
 
 def process_sim_results(results: vt.SimulationResults, mc_results: dict):
