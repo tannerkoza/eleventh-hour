@@ -1,11 +1,6 @@
 import numpy as np
-from itertools import product
 
-state = np.array([1, 0])
-P = np.array([[-5, 0, 5], [-10, 0, 10]]).T
-
-
-b = state + P
-# a = np.array(list(product(*b))).T
-
-print(b)
+data = np.load(
+    "/home/tannerkoza/devel/eleventh-hour/data/monte_carlos/20240126-113141_VP_MonteCarlo_daytona_500_sdx_1s_loop_20s_50Hz/js40.npz"
+)
+print()

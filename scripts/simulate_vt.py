@@ -229,6 +229,7 @@ if __name__ == "__main__":
             az=az,
             el=el,
             label=constellation,
+            name=names,
             deg=False,
         )
 

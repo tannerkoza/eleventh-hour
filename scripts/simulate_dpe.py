@@ -201,6 +201,7 @@ if __name__ == "__main__":
     #     T=conf.T,
     #     frames=len(sim_observables),
     # )
+    plt.figure()
     geoplot(
         lat=results.states.truth_lla[0],
         lon=results.states.truth_lla[1],

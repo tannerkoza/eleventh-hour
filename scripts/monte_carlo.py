@@ -11,8 +11,8 @@ from eleventh_hour.navigators import create_padded_df
 
 # sim parameters
 NAVIGATOR = "dpe"
-NSIMS = 10
-JS = np.arange(0, 5, 5, dtype=float)
+NSIMS = 5
+JS = np.arange(40, 45, 10, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -59,6 +59,8 @@ def monte_carlo():
             corr_sim.clear_errors()
 
         results = process_mc_results(time=results.states.time, mc_results=mc_results)
+        mc_results = defaultdict(lambda: [])
+
         np.savez_compressed(output_dir / f"js{int(js):02}", **results)
 
 
@@ -80,6 +82,11 @@ def process_sim_results(results: vt.SimulationResults, mc_results: dict):
     mc_results["prange_error"].append(mean_prange_error)
     mc_results["prange_rate_error"].append(mean_prange_rate_error)
 
+    mc_results["pos"].append(results.states.enu_pos)
+    mc_results["vel"].append(results.states.enu_vel)
+    mc_results["cb"].append(results.states.clock_bias)
+    mc_results["cd"].append(results.states.clock_drift)
+
     mc_results["pos_error"].append(results.errors.pos)
     mc_results["vel_error"].append(results.errors.vel)
     mc_results["cb_error"].append(results.errors.clock_bias)
@@ -96,6 +103,10 @@ def process_sim_results(results: vt.SimulationResults, mc_results: dict):
 def process_mc_results(time: np.ndarray, mc_results: dict):
     results = defaultdict()
     results["time"] = time
+    results["pos"] = mc_results["pos"]
+    results["vel"] = mc_results["vel"]
+    results["cb"] = mc_results["cb"]
+    results["cd"] = mc_results["cd"]
 
     for key, value in mc_results.items():
         new_key = f"mean_{key}"
@@ -118,7 +129,21 @@ def process_mc_results(time: np.ndarray, mc_results: dict):
 def create_sim_dir(conf: ns.SignalConfiguration):
     now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
 
-    dir_name = f"{now}_{NAVIGATOR.upper()}_MonteCarlo_{vt.TRAJECTORY}_{int(conf.time.duration)}s_{int(conf.time.fsim)}Hz"
+    match NAVIGATOR.casefold():
+        case "vp":
+            traj = vt.TRAJECTORY
+            if vt.IS_STATIC:
+                mp = "STATIC"
+            else:
+                mp = "DYNAMIC"
+        case "dpe":
+            traj = dpe.TRAJECTORY
+            if dpe.IS_STATIC:
+                mp = "STATIC"
+            else:
+                mp = "DYNAMIC"
+
+    dir_name = f"{now}_{NAVIGATOR.upper()}_MonteCarlo_{traj}_{mp}_{int(conf.time.duration)}s_{int(conf.time.fsim)}Hz"
     sim_dir = MC_PATH / dir_name
 
     sim_dir.mkdir(parents=True, exist_ok=True)
