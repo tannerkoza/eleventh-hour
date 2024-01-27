@@ -19,7 +19,7 @@ from eleventh_hour.plot import (
 
 # sim parameters
 TRAJECTORY = "daytona_500_sdx_1s_loop"
-IS_STATIC = False
+IS_STATIC = True
 IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
