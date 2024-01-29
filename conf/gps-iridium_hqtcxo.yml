@@ -14,7 +14,7 @@ constellations:
       js: 0.0
       correlator_model: bpsk
     iridium-next:
-      signal: gpsl1ca
+      signal: auburn
       js: 0.0
       correlator_model: bpsk
 

@@ -11,8 +11,8 @@ from eleventh_hour.navigators import create_padded_df
 
 # sim parameters
 NAVIGATOR = "dpe"
-NSIMS = 100
-JS = np.arange(0,45, 5, dtype=float)
+NSIMS = 10
+JS = np.arange(0, 5, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -70,11 +70,23 @@ def process_sim_results(results: vt.SimulationResults, mc_results: dict):
     prange_error = create_padded_df(data=results.prange_errors)
     prange_rate_error = create_padded_df(data=results.prange_rate_errors)
 
-    mean_ptrack = np.mean(np.abs(chip_error.gps.to_numpy()[-1]) < 0.5)
-    mean_chip_error = np.mean(np.abs(chip_error.gps.to_numpy()), axis=1)
-    mean_ferror = np.mean(np.abs(ferror.gps.to_numpy()), axis=1)
-    mean_prange_error = np.mean(np.abs(prange_error.gps.to_numpy()), axis=1)
-    mean_prange_rate_error = np.mean(np.abs(prange_rate_error.gps.to_numpy()), axis=1)
+    chip_error = np.ma.array(
+        chip_error.gps.to_numpy(), mask=np.isnan(chip_error.gps.to_numpy())
+    )
+    ferror = np.ma.array(ferror.gps.to_numpy(), mask=np.isnan(ferror.gps.to_numpy()))
+    prange_error = np.ma.array(
+        prange_error.gps.to_numpy(), mask=np.isnan(prange_error.gps.to_numpy())
+    )
+    prange_rate_error = np.ma.array(
+        prange_rate_error.gps.to_numpy(),
+        mask=np.isnan(prange_rate_error.gps.to_numpy()),
+    )
+
+    mean_ptrack = np.mean(np.abs(chip_error[-1]) < 0.5)
+    mean_chip_error = np.mean(np.abs(chip_error), axis=1)
+    mean_ferror = np.mean(np.abs(ferror), axis=1)
+    mean_prange_error = np.mean(np.abs(prange_error), axis=1)
+    mean_prange_rate_error = np.mean(np.abs(prange_rate_error), axis=1)
 
     mc_results["ptrack"].append(mean_ptrack)
     mc_results["chip_error"].append(mean_chip_error)
@@ -82,10 +94,10 @@ def process_sim_results(results: vt.SimulationResults, mc_results: dict):
     mc_results["prange_error"].append(mean_prange_error)
     mc_results["prange_rate_error"].append(mean_prange_rate_error)
 
-    mc_results["pos"].append(results.states.enu_pos)
-    mc_results["vel"].append(results.states.enu_vel)
-    mc_results["cb"].append(results.states.clock_bias)
-    mc_results["cd"].append(results.states.clock_drift)
+    # mc_results["pos"].append(results.states.enu_pos)
+    # mc_results["vel"].append(results.states.enu_vel)
+    # mc_results["cb"].append(results.states.clock_bias)
+    # mc_results["cd"].append(results.states.clock_drift)
 
     mc_results["pos_error"].append(results.errors.pos)
     mc_results["vel_error"].append(results.errors.vel)
@@ -103,10 +115,10 @@ def process_sim_results(results: vt.SimulationResults, mc_results: dict):
 def process_mc_results(time: np.ndarray, mc_results: dict):
     results = defaultdict()
     results["time"] = time
-    results["pos"] = mc_results["pos"]
-    results["vel"] = mc_results["vel"]
-    results["cb"] = mc_results["cb"]
-    results["cd"] = mc_results["cd"]
+    results["pos_error"] = mc_results["pos_error"]
+    results["vel_error"] = mc_results["vel_error"]
+    results["cb_error"] = mc_results["cb_error"]
+    results["cd_error"] = mc_results["cd_error"]
 
     for key, value in mc_results.items():
         new_key = f"mean_{key}"

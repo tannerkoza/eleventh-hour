@@ -9,9 +9,9 @@ from eleventh_hour.trajectories import prepare_trajectories
 from eleventh_hour.navigators.dpe import DirectPositioning
 
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from eleventh_hour.plot import (
     geoplot,
+    pf_animation,
     plot_states,
     plot_errors,
     plot_covariances,
@@ -19,16 +19,20 @@ from eleventh_hour.plot import (
 
 # sim parameters
 TRAJECTORY = "daytona_500_sdx_1s_loop"
-IS_STATIC = True
+IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
 NSPHERES = 100
 PDELTA = 7.5
-VDELTA = 5.5
-BDELTA = 1.5
+VDELTA = 0.5
+BDELTA = 7.5
 DDELTA = 0.25
-PROCESS_NOISE_SIGMA = 5
+PROCESS_NOISE_SIGMA = 0.5
+DELAY_BIAS_SIGMA = 3
+DRIFT_BIAS_SIGMA = 0.01
+DELAY_BIAS_RESOLUTION = 0.01
+DRIFT_BIAS_RESOLUTION = 0.01
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
@@ -76,18 +80,26 @@ def simulate(
         emitter_states = sim_emitter_states.ephemeris
 
     # navigator setup
-    rx_pos0 = sim_rx_states.pos[0]
+    rx_pos0 = sim_rx_states.pos[0]  # + DELAY_BIAS_SIGMA * np.random.randn(3)
     rx_vel0 = sim_rx_states.vel[0]
     rx_clock_bias0 = sim_rx_states.clock_bias[0]
     rx_clock_drift0 = sim_rx_states.clock_drift[0]
     rx_clock_type = conf.errors.rx_clock
+    P = np.diag([1, 1, 1, 1, 1, 1, 1, 1])
 
     conf = DPEConfiguration(
+        is_grid=True,
+        nparticles=1000,
+        P=P,
         nspheres=NSPHERES,
         pdelta=PDELTA,
         vdelta=VDELTA,
         bdelta=BDELTA,
         ddelta=DDELTA,
+        delay_bias_sigma=DELAY_BIAS_SIGMA,
+        delay_bias_resolution=DELAY_BIAS_RESOLUTION,
+        drift_bias_resolution=DRIFT_BIAS_RESOLUTION,
+        drift_bias_sigma=DRIFT_BIAS_SIGMA,
         process_noise_sigma=PROCESS_NOISE_SIGMA,
         neff_percentage=50.0,
         rx_pos=rx_pos0,
@@ -146,7 +158,9 @@ def simulate(
             z=sim_rx_states.pos.T[2],
         )
     )
-    states, errors = process_state_results(truth=sim_rx_states, rx_states=dpe.rx_states)
+    states, errors = process_state_results(
+        truth=sim_rx_states, rx_states=dpe.rx_states, particles=dpe.particles
+    )
     covariances = process_covariance_results(
         time=states.time, cov=dpe.covariances, lat=lla[0], lon=lla[1]
     )
@@ -159,7 +173,6 @@ def simulate(
         ferrors=corr_sim.ferrors,
         prange_errors=corr_sim.code_prange_errors,
         prange_rate_errors=corr_sim.prange_rate_errors,
-        particles=dpe.particles,
     )
 
     return results
@@ -194,77 +207,19 @@ if __name__ == "__main__":
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # pf_animation(
-    #     particles=dpe.particles,
-    #     truth=sim_rx_states,
-    #     rx=states,
-    #     T=conf.T,
-    #     frames=len(sim_observables),
-    # )
-    plt.figure()
-    geoplot(
-        lat=results.states.truth_lla[0],
-        lon=results.states.truth_lla[1],
+    pf_animation(
+        time=results.states.time,
+        particles=results.states.particles.pos,
+        truth=results.states.truth_enu_pos,
+        rx=results.states.enu_pos,
         output_dir=output_dir,
     )
-    plot_states(states=results.states, output_dir=output_dir)
-    plot_errors(errors=results.errors, output_dir=output_dir)
-    plot_covariances(cov=results.covariances, output_dir=output_dir)
-
-# def pf_animation(particles, truth, rx, T, frames, output_dir):
-#     fig, ax = plt.subplots()
-
-#     lla0 = nt.ecef2lla(truth.pos[0, 0], truth.pos[0, 1], truth.pos[0, 2])
-#     particles = np.array(
-#         nt.ecef2enu(
-#             x=particles.pos[:, 0],
-#             y=particles.pos[:, 1],
-#             z=particles.pos[:, 2],
-#             lat0=lla0.lat,
-#             lon0=lla0.lon,
-#             alt0=lla0.alt,
-#         )
-#     )
-#     truth = np.array(
-#         nt.ecef2enu(
-#             x=truth.pos[:, 0],
-#             y=truth.pos[:, 1],
-#             z=truth.pos[:, 2],
-#             lat0=lla0.lat,
-#             lon0=lla0.lon,
-#             alt0=lla0.alt,
-#         )
-#     ).T
-#     rx = np.array(
-#         nt.ecef2enu(
-#             x=rx.pos[:, 0],
-#             y=rx.pos[:, 1],
-#             z=rx.pos[:, 2],
-#             lat0=lla0.lat,
-#             lon0=lla0.lon,
-#             alt0=lla0.alt,
-#         )
-#     ).T
-
-#     part = ax.scatter(particles[0, 0], particles[1, 0], c="b", s=5, label="particles")
-#     # t = ax.plot(truth[0, 0], truth[0, 1], "g*", label="truth")[0]
-#     # r = ax.plot(rx[0, 0], rx[0, 1], "*", label="rx")[0]
-#     ax.legend()
-
-#     def update(frame):
-#         # for each frame, update the data stored on each artist.
-#         x = particles[0, frame]
-#         y = particles[1, frame]
-#         # # update the scatter plot:
-#         data = np.stack([x, y]).T
-#         part.set_offsets(data)
-#         # update the line plot:
-#         # t.set_xdata(truth[frame, 0])
-#         # t.set_ydata(truth[frame, 1])
-#         # r.set_xdata(rx[frame, 0])
-#         # r.set_ydata(rx[frame, 1])
-
-#         return part
-
-#     ani = animation.FuncAnimation(fig=fig, func=update, interval=T, frames=frames)
-#     ani.save()
+    plt.figure()
+    # geoplot(
+    #     lat=results.states.truth_lla[0],
+    #     lon=results.states.truth_lla[1],
+    #     output_dir=output_dir,
+    # )
+    plot_states(states=results.states, output_dir=output_dir, label="dpe")
+    plot_errors(errors=results.errors, output_dir=output_dir, label="dpe")
+    plot_covariances(cov=results.covariances, output_dir=output_dir, label="dpe")

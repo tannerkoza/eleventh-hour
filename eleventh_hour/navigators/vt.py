@@ -188,9 +188,7 @@ class VDFLL:
         prange_rates = np.array(range_rates) + rx_clock_drift
 
         # update state
-        self.__update_cycle_lengths(
-            constellations=constellations, prange_rates=prange_rates
-        )
+        self.__update_cycle_lengths(systems=constellations)
         self.__nchannels = len(constellations)
         self.__emitter_states = emitter_states
         self.__unit_vectors = np.array(unit_vectors).T
@@ -335,22 +333,18 @@ class VDFLL:
 
         self.R = np.diag(residual_vars)
 
-    def __update_cycle_lengths(self, constellations: list, prange_rates: np.ndarray):
+    def __update_cycle_lengths(self, systems: list):
         chip_length = []
         wavelength = []
 
-        for constellation, prange_rate in zip(constellations, prange_rates):
-            properties = self.__sig_properties.get(constellation.casefold())
+        for sys in systems:
+            properties = self.__sig_properties.get(sys.casefold())
 
             fcarrier = properties.fcarrier
             fchip = properties.fchip_data  # ! assumes tracking data channel !
 
-            fratio = fchip / fcarrier
-            carrier_doppler = -prange_rate * (fcarrier / SPEED_OF_LIGHT)
-            code_doppler = carrier_doppler * fratio
-
-            chip_length.append(SPEED_OF_LIGHT / (fchip + code_doppler))
-            wavelength.append(SPEED_OF_LIGHT / (fcarrier + carrier_doppler))
+            chip_length.append(SPEED_OF_LIGHT / fchip)
+            wavelength.append(SPEED_OF_LIGHT / fcarrier)
 
         self.chip_length = np.array(chip_length)
         self.wavelength = np.array(wavelength)
@@ -430,8 +424,8 @@ class VDFLL:
 
         first_ip = np.mean(split_ip[0], axis=0)
         first_qp = np.mean(split_qp[0], axis=0)
-        last_ip = np.mean(split_ip[1], axis=0)
-        last_qp = np.mean(split_qp[1], axis=0)
+        last_ip = np.mean(split_ip[1], axis=0) + np.random.randn(split_ip[1].size)
+        last_qp = np.mean(split_qp[1], axis=0) + np.random.randn(split_ip[1].size)
 
         # frequency discriminator
         cross = first_ip * last_qp - last_ip * first_qp

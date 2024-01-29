@@ -9,6 +9,8 @@ import cartopy.io.img_tiles as cimgt
 
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
+import matplotlib.animation as animation
+from matplotlib.ticker import FormatStrFormatter
 
 from PIL import Image
 from pathlib import Path
@@ -186,11 +188,11 @@ def skyplot(
     return ax
 
 
-def plot_states(states: StateResults, output_dir: Path = None):
+def plot_states(states: StateResults, output_dir: Path = None, **kwargs):
     # trajectory
     plt.figure()
     plt.plot(states.truth_enu_pos[0], states.truth_enu_pos[1], label="truth")
-    plt.plot(states.enu_pos[0], states.enu_pos[1], label="vdfll")
+    plt.plot(states.enu_pos[0], states.enu_pos[1], **kwargs)
     plt.xlabel("East [m]")
     plt.ylabel("North [m]")
     plt.legend()
@@ -206,7 +208,7 @@ def plot_states(states: StateResults, output_dir: Path = None):
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
         ax.plot(states.time, states.truth_enu_pos[index], label="truth")
-        ax.plot(states.time, states.enu_pos[index], label="vdfll")
+        ax.plot(states.time, states.enu_pos[index], **kwargs)
         ax.set_title(title)
 
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -223,7 +225,7 @@ def plot_states(states: StateResults, output_dir: Path = None):
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
         ax.plot(states.time, states.truth_enu_vel[index], label="truth")
-        ax.plot(states.time, states.enu_vel[index], label="vdfll")
+        ax.plot(states.time, states.enu_vel[index], **kwargs)
         ax.set_title(title)
 
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -238,7 +240,7 @@ def plot_states(states: StateResults, output_dir: Path = None):
     # clock bias
     plt.figure()
     plt.plot(states.time, states.truth_clock_bias, label="truth")
-    plt.plot(states.time, states.clock_bias, label="vdfll")
+    plt.plot(states.time, states.clock_bias, **kwargs)
     plt.xlabel("Time [s]")
     plt.ylabel("Clock Bias [m]")
     plt.legend()
@@ -250,7 +252,7 @@ def plot_states(states: StateResults, output_dir: Path = None):
     # clock drift
     plt.figure()
     plt.plot(states.time, states.truth_clock_drift, label="truth")
-    plt.plot(states.time, states.clock_drift, label="vdfll")
+    plt.plot(states.time, states.clock_drift, **kwargs)
     plt.xlabel("Time [s]")
     plt.ylabel("Clock Drift [m/s]")
     plt.legend()
@@ -260,12 +262,12 @@ def plot_states(states: StateResults, output_dir: Path = None):
         plt.savefig(output_dir / "cd")
 
 
-def plot_covariances(cov: CovarianceResults, output_dir: Path = None):
+def plot_covariances(cov: CovarianceResults, output_dir: Path = None, **kwargs):
     # position
     fig, axes = plt.subplots(nrows=3, ncols=1, sharey=True, sharex=True)
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
-        ax.plot(cov.time, 3 * np.sqrt(cov.pos[index]), label="vdfll")
+        ax.plot(cov.time, 3 * np.sqrt(cov.pos[index]), **kwargs)
         ax.set_title(title)
 
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -281,7 +283,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None):
     fig, axes = plt.subplots(nrows=3, ncols=1, sharey=True, sharex=True)
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
-        ax.plot(cov.time, 3 * np.sqrt(cov.vel[index]), label="vdfll")
+        ax.plot(cov.time, 3 * np.sqrt(cov.vel[index]), **kwargs)
         ax.set_title(title)
 
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -295,7 +297,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None):
 
     # clock bias
     plt.figure()
-    plt.plot(cov.time, 3 * np.sqrt(cov.clock_bias), label="vdfll")
+    plt.plot(cov.time, 3 * np.sqrt(cov.clock_bias), **kwargs)
     plt.xlabel("Time [s]")
     plt.ylabel("Clock Bias 3-$\\sigma$ [m]")
     plt.legend()
@@ -306,7 +308,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None):
 
     # clock drift
     plt.figure()
-    plt.plot(cov.time, 3 * np.sqrt(cov.clock_drift), label="vdfll")
+    plt.plot(cov.time, 3 * np.sqrt(cov.clock_drift), **kwargs)
     plt.xlabel("Time [s]")
     plt.ylabel("Clock Drift 3-$\\sigma$ [m/s]")
     plt.legend()
@@ -316,7 +318,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None):
         plt.savefig(output_dir / "cd_cov")
 
 
-def plot_errors(errors: ErrorResults, output_dir: Path = None):
+def plot_errors(errors: ErrorResults, output_dir: Path = None, **kwargs):
     POS_ERROR_BOUNDS = 150
     VEL_ERROR_BOUNDS = 20
 
@@ -324,7 +326,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None):
     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True)
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
-        ax.plot(errors.time, errors.pos[index], label="vdfll")
+        ax.plot(errors.time, errors.pos[index], **kwargs)
         if np.max(np.abs(errors.pos)) > POS_ERROR_BOUNDS:
             ax.set_ylim(bottom=-POS_ERROR_BOUNDS, top=POS_ERROR_BOUNDS)
         ax.set_title(title)
@@ -342,7 +344,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None):
     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True)
     titles = ["East", "North", "Up"]
     for index, (ax, title) in enumerate(zip(axes, titles)):
-        ax.plot(errors.time, errors.vel[index], label="vdfll")
+        ax.plot(errors.time, errors.vel[index], **kwargs)
         if np.max(np.abs(errors.vel)) > VEL_ERROR_BOUNDS:
             ax.set_ylim(bottom=-VEL_ERROR_BOUNDS, top=VEL_ERROR_BOUNDS)
         ax.set_title(title)
@@ -358,7 +360,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None):
 
     # clock bias error
     plt.figure()
-    plt.plot(errors.time, errors.clock_bias, label="vdfll")
+    plt.plot(errors.time, errors.clock_bias, **kwargs)
     plt.xlabel("Time [s]")
     plt.ylabel("Clock Bias Error [m]")
     plt.legend()
@@ -369,7 +371,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None):
 
     # clock drift error
     plt.figure()
-    plt.plot(errors.time, errors.clock_drift, label="vdfll")
+    plt.plot(errors.time, errors.clock_drift, **kwargs)
     plt.xlabel("Time [s]")
     plt.ylabel("Clock Drift Error [m/s]")
     plt.legend()
@@ -507,3 +509,106 @@ def plot_cn0s(time: np.ndarray, cn0s: dict, output_dir: Path = None):
 
     if output_dir is not None:
         plt.savefig(output_dir / "cn0s")
+
+
+def pf_animation(
+    time: np.ndarray,
+    truth: np.ndarray,
+    rx: np.ndarray,
+    particles: np.ndarray,
+    output_dir: Path,
+):
+    fig, ax = plt.subplots()
+    nframes = truth[0].size
+    interval = np.mean(np.diff(time)) * 1000
+    ax.xaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+
+    t = ax.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
+    r = ax.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
+    p = ax.scatter(
+        particles[0, 0], particles[1, 0], c="darkblue", s=5, label="particles"
+    )
+
+    ax.set_xlabel("East [m]")
+    ax.set_ylabel("North [m]")
+
+    x_half_range = np.abs(truth[0].max() - truth[0].min())
+    y_half_range = np.abs(truth[1].max() - truth[1].min())
+
+    BUFFER = 1.1
+    ax.set_xlim(
+        truth[0, 0] - x_half_range * BUFFER, truth[0, 0] + x_half_range * BUFFER
+    )
+    ax.set_ylim(
+        truth[1, 0] - y_half_range * BUFFER, truth[1, 0] + y_half_range * BUFFER
+    )
+
+    x_half_range = np.abs(particles[0, 0].max() - particles[0, 0].min()) / 2
+    y_half_range = np.abs(particles[1, 0].max() - particles[1, 0].min()) / 2
+    half_range = max(x_half_range, y_half_range)
+
+    x1 = rx[0, 0] - half_range * BUFFER
+    x2 = rx[0, 0] + half_range * BUFFER
+    y1 = rx[1, 0] - half_range * BUFFER
+    y2 = rx[1, 0] + half_range * BUFFER
+
+    axins = ax.inset_axes(
+        [0.05, 0.6, 0.35, 0.35],
+        xlim=(x1, x2),
+        ylim=(y1, y2),
+        xticklabels=[],
+        yticklabels=[],
+    )
+
+    tz = axins.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
+    rz = axins.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
+    pz = axins.scatter(
+        particles[0, 0], particles[1, 0], c="darkblue", s=5, label="particles"
+    )
+    ax.indicate_inset_zoom(axins, edgecolor="black")
+    ax.axis("equal")
+    axins.axis("equal")
+    ax.legend(loc="upper right")
+
+    def update(frame):
+        for patch in ax.patches:
+            patch.remove()
+
+        reast = rx[0, frame]
+        rnorth = rx[1, frame]
+        peast = particles[0, frame]
+        pnorth = particles[1, frame]
+
+        pdata = np.stack([peast, pnorth]).T
+        p.set_offsets(pdata)
+        t.set_data([truth[0, :frame]], [truth[1, :frame]])
+        r.set_data([rx[0, :frame]], [rx[1, :frame]])
+
+        x_half_range = np.abs(peast.max() - peast.min()) / 2
+        y_half_range = np.abs(pnorth.max() - pnorth.min()) / 2
+        half_range = max(x_half_range, y_half_range)
+
+        BUFFER = 1.1
+
+        x1 = reast - half_range * BUFFER
+        x2 = reast + half_range * BUFFER
+        y1 = rnorth - half_range * BUFFER
+        y2 = rnorth + half_range * BUFFER
+
+        pz.set_offsets(pdata)
+        tz.set_data([truth[0, :frame]], [truth[1, :frame]])
+        rz.set_data([rx[0, :frame]], [rx[1, :frame]])
+
+        axins.set_xlim(x1, x2)
+        axins.set_ylim(y1, y2)
+
+        ax.indicate_inset_zoom(axins, edgecolor="black")
+
+        return p
+
+    ani = animation.FuncAnimation(
+        fig=fig, func=update, frames=nframes, interval=interval
+    )
+    plt.show()
+    # ani.save(output_dir / "pf.gif")

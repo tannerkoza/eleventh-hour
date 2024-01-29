@@ -10,7 +10,7 @@ from navtools.conversions import ecef2lla, ecef2enu, uvw2enu
 
 
 # navigator logging
-@dataclass(frozen=True, repr=False)
+@dataclass(repr=False)
 class ReceiverStates:
     pos: ndarray
     vel: ndarray
@@ -62,15 +62,6 @@ class VDFLLConfiguration:
 
 @dataclass(frozen=True)
 class DPEConfiguration:
-    # tuning
-    nspheres: int
-    pdelta: float
-    vdelta: float
-    bdelta: float
-    ddelta: float
-    process_noise_sigma: float
-    neff_percentage: float
-
     # initial states
     rx_pos: ndarray
     rx_vel: ndarray
@@ -80,6 +71,25 @@ class DPEConfiguration:
 
     # properties
     rx_clock_type: str
+
+    # tuning
+    process_noise_sigma: float
+    neff_percentage: float
+    is_grid: bool
+
+    delay_bias_sigma: float = 6.0
+    delay_bias_resolution: float = 0.01
+    drift_bias_sigma: float = 3.0
+    drift_bias_resolution: float = 0.01
+
+    P: np.ndarray = np.eye(8)
+    nparticles: int = 1000
+
+    nspheres: int = 100
+    pdelta: float = 7.0
+    vdelta: float = 1.0
+    bdelta: float = 7.0
+    ddelta: float = 0.25
 
 
 # simulation results
@@ -97,6 +107,7 @@ class StateResults:
     enu_vel: np.ndarray
     clock_bias: np.ndarray
     clock_drift: np.ndarray
+    particles: np.ndarray = None
 
 
 @dataclass
@@ -134,9 +145,6 @@ class SimulationResults:
     channel_errors: ChannelErrors = None
     correlators: Correlators = None
 
-    # dpe specific
-    particles: np.ndarray = None
-
 
 def process_truth_states(truth: ReceiverTruthStates):
     lla = np.array(
@@ -172,6 +180,7 @@ def process_truth_states(truth: ReceiverTruthStates):
 def process_state_results(
     truth: ReceiverTruthStates,
     rx_states: ReceiverStates,
+    particles: ReceiverStates = None,
 ):
     truth_lla, truth_enu_pos, truth_enu_vel = process_truth_states(truth=truth)
 
@@ -206,6 +215,29 @@ def process_state_results(
         )
     )
 
+    if particles is not None:
+        penu_pos = np.array(
+            ecef2enu(
+                x=particles.pos[:, 0],
+                y=particles.pos[:, 1],
+                z=particles.pos[:, 2],
+                lat0=truth_lla[0, 0],
+                lon0=truth_lla[1, 0],
+                alt0=truth_lla[2, 0],
+            )
+        )
+        penu_vel = np.array(
+            uvw2enu(
+                u=particles.vel[:, 0],
+                v=particles.vel[:, 1],
+                w=particles.vel[:, 2],
+                lat0=truth_lla[0, 0],
+                lon0=truth_lla[1, 0],
+            )
+        )
+        particles.pos = penu_pos
+        particles.vel = penu_vel
+
     clock_bias = rx_states.clock_bias
     clock_drift = rx_states.clock_drift
 
@@ -226,6 +258,7 @@ def process_state_results(
         enu_vel=enu_vel,
         clock_bias=clock_bias,
         clock_drift=clock_drift,
+        particles=particles,
     )
 
     errors = ErrorResults(

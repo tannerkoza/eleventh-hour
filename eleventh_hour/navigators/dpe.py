@@ -5,6 +5,7 @@ import scipy.linalg as linalg
 
 from itertools import product
 from scipy.linalg import block_diag
+from navtools.conversions import ecef2lla, enu2uvw
 from navsim.error_models.clock import NavigationClock
 from navtools.constants import SPEED_OF_LIGHT
 from eleventh_hour.navigators import (
@@ -29,6 +30,7 @@ def create_spread_grid(delta: float | list, nspheres: int | list, ntiles: int = 
         last_max_value = max_value
 
     grid = np.append(np.flip(-subgrids), subgrids)
+    grid = np.insert(grid, int(grid.size / 2), 0.0)
 
     if ntiles is not None:
         grid = np.tile(grid, (ntiles, 1))
@@ -72,7 +74,21 @@ class DirectPositioning:
         )
 
         # particles
-        self.__init_particles()
+        if conf.is_grid:
+            self.delay_bias_sigma = conf.delay_bias_sigma
+            self.delay_bias_resolution = conf.delay_bias_resolution
+            self.drift_bias_sigma = conf.drift_bias_sigma
+            self.drift_bias_resolution = conf.drift_bias_resolution
+
+            # self.nspheres = conf.nspheres
+            # self.nparticles = 2 * self.nspheres * self.rx_state.size + 1
+            self.__init_grid_particles()
+        else:
+            self.nparticles = conf.nparticles
+            self.P = conf.P
+            self.__init_rng_particles()
+
+        self.weights = (1 / self.nparticles) * np.ones(self.nparticles)
 
         # logging
         self.__rx_states = []
@@ -147,19 +163,40 @@ class DirectPositioning:
     def estimate_state(self, inphase: np.ndarray, quadrature: np.ndarray):
         systems = np.unique(self.channel_systems)
 
-        sys_powers = []
+        norm_sys_powers = []
         for system in systems:
             sys_indices = (self.channel_systems == system).nonzero()
 
-            ipower = np.sum(inphase.T[sys_indices], axis=0) ** 2
-            qpower = np.sum(quadrature.T[sys_indices], axis=0) ** 2
-            power = ipower + qpower
-            norm_power = power / np.sum(power)
+            sys_inphase = inphase.T[sys_indices]
+            sys_quadrature = quadrature.T[sys_indices]
 
-            sys_powers.append(norm_power)
+            ipower = np.sum(np.abs(sys_inphase), axis=0) ** 2
+            qpower = np.sum(np.abs(sys_quadrature), axis=0) ** 2
+            sys_power = ipower + qpower
 
-        power = np.sum(sys_powers, axis=0) ** 2
-        self.weights = power / np.sum(power)
+            scaled_sys_power = (sys_power - np.min(sys_power)) / (
+                np.max(sys_power) - np.min(sys_power)
+            )
+
+            norm_sys_power = sys_power / np.sum(sys_power)
+
+            norm_sys_powers.append(norm_sys_power)
+
+        total_norm_powers = np.sum(norm_sys_powers, axis=0) ** 2
+        norm_sys_weights = total_norm_powers / np.sum(total_norm_powers)
+
+        ipower = np.sum(np.abs(inphase), axis=1) ** 2
+        qpower = np.sum(np.abs(quadrature), axis=1) ** 2
+        total_power = norm_sys_weights * (ipower + qpower)
+        scaled_total_power = (total_power - np.min(total_power)) / (
+            np.max(total_power) - np.min(total_power)
+        )
+
+        last_log_weights = np.log(self.weights)
+        new_log_weights = last_log_weights + scaled_total_power
+        weights = np.exp(new_log_weights - np.max(new_log_weights)) ** 2
+
+        self.weights = weights / np.sum(weights)
         self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
 
         self.covariance = np.cov(self.epoch_particles, aweights=self.weights)
@@ -178,23 +215,36 @@ class DirectPositioning:
         self.__particles.append(self.epoch_particles.copy())
 
     # private
-    def __init_particles(self):
-        self.nparticles = 2 * self.nspheres * self.rx_state.size + 1
-        rx_state = np.broadcast_to(
-            self.rx_state, (self.nparticles, self.rx_state.size)
-        ).T
+    def __init_grid_particles(self):
+        ndelay_spheres = int(3 * self.delay_bias_sigma / self.delay_bias_resolution)
+        ndrift_spheres = int(3 * self.drift_bias_sigma / self.drift_bias_resolution)
+        self.nparticles = 2 * max(ndelay_spheres, ndrift_spheres) + 1
 
-        pdeltas = create_spread_grid(delta=self.pdelta, nspheres=self.nspheres)
-        vdeltas = create_spread_grid(delta=self.vdelta, nspheres=self.nspheres)
-        bdeltas = create_spread_grid(delta=self.bdelta, nspheres=self.nspheres)
-        ddeltas = create_spread_grid(delta=self.ddelta, nspheres=self.nspheres)
-
-        deltas = block_diag(
-            pdeltas, vdeltas, pdeltas, vdeltas, pdeltas, vdeltas, bdeltas, ddeltas
+        delay_deltas = create_spread_grid(
+            delta=self.delay_bias_resolution, nspheres=ndelay_spheres
         )
-        deltas = np.hstack((np.zeros_like(self.rx_state)[..., np.newaxis], deltas))
+        drift_deltas = create_spread_grid(
+            delta=self.drift_bias_resolution, nspheres=ndrift_spheres
+        )
 
-        self.epoch_particles = rx_state + deltas
+        delay_points = np.linspace(0, 1, delay_deltas.size)
+        drift_points = np.linspace(0, 1, drift_deltas.size)
+        if delay_deltas.size > drift_deltas.size:
+            drift_deltas = np.interp(delay_points, drift_points, drift_deltas)
+        else:
+            delay_deltas = np.interp(drift_points, delay_points, delay_deltas)
+
+        # / 2 to ensure norm of states == delay/drift deltas
+        pb_deltas = delay_deltas / 2
+        vd_deltas = drift_deltas / 2
+
+        self.deltas = np.tile(np.array([pb_deltas, vd_deltas]), (4, 1)).T
+        self.epoch_particles = np.transpose(self.rx_state + self.deltas)
+
+    def __init_rng_particles(self):
+        self.epoch_particles = np.random.multivariate_normal(
+            mean=self.rx_state, cov=self.P, size=self.nparticles
+        ).T
 
     def __compute_A(self):
         xyzclock_A = np.array([[1, self.T], [0, 1]])

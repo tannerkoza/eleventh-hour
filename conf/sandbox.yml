@@ -1,5 +1,5 @@
 time:
-  duration: 1.0 # [s]
+  duration: 10.0 # [s]
   fsim: 50 # [Hz]
   year: 2023
   month: 12
