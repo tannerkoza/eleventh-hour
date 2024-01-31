@@ -7,7 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 
 # user-defined variables
-MC_DIR_NAME = "daytonafr"
+MC_DIR_NAME = "ppnt"
 RE_EXPR = "gps|iridium|vp|dpe"
 TITLES = ["East", "North", "Up"]
 CONTEXT = "paper"
@@ -56,7 +56,6 @@ def plot():
         sorted_js_indices = np.argsort(js)
 
         ptrack = np.array([js["mean_ptrack"] for js in data.values()]) * 100.0
-        pos = np.array([js["pos"] for js in data.values()])
         rmspe = np.array([js["rms_pos_error"] for js in data.values()]).mean(axis=1).T
         rmsve = np.array([js["rms_vel_error"] for js in data.values()]).mean(axis=1).T
         rmscbe = np.array([js["rms_cb_error"] for js in data.values()]).mean(axis=1)

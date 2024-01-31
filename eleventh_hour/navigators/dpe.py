@@ -170,8 +170,8 @@ class DirectPositioning:
             sys_inphase = inphase.T[sys_indices]
             sys_quadrature = quadrature.T[sys_indices]
 
-            ipower = np.sum(np.abs(sys_inphase), axis=0) ** 2
-            qpower = np.sum(np.abs(sys_quadrature), axis=0) ** 2
+            ipower = np.sum(sys_inphase, axis=0) ** 2
+            qpower = np.sum(sys_quadrature, axis=0) ** 2
             sys_power = ipower + qpower
 
             scaled_sys_power = (sys_power - np.min(sys_power)) / (
@@ -185,8 +185,8 @@ class DirectPositioning:
         total_norm_powers = np.sum(norm_sys_powers, axis=0) ** 2
         norm_sys_weights = total_norm_powers / np.sum(total_norm_powers)
 
-        ipower = np.sum(np.abs(inphase), axis=1) ** 2
-        qpower = np.sum(np.abs(quadrature), axis=1) ** 2
+        ipower = np.sum(inphase, axis=1) ** 2
+        qpower = np.sum(quadrature, axis=1) ** 2
         total_power = norm_sys_weights * (ipower + qpower)
         scaled_total_power = (total_power - np.min(total_power)) / (
             np.max(total_power) - np.min(total_power)

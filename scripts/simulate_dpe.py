@@ -23,14 +23,9 @@ IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
-NSPHERES = 100
-PDELTA = 7.5
-VDELTA = 0.5
-BDELTA = 7.5
-DDELTA = 0.25
 PROCESS_NOISE_SIGMA = 0.5
 DELAY_BIAS_SIGMA = 3
-DRIFT_BIAS_SIGMA = 0.01
+DRIFT_BIAS_SIGMA = 0.1
 DELAY_BIAS_RESOLUTION = 0.01
 DRIFT_BIAS_RESOLUTION = 0.01
 
@@ -85,17 +80,9 @@ def simulate(
     rx_clock_bias0 = sim_rx_states.clock_bias[0]
     rx_clock_drift0 = sim_rx_states.clock_drift[0]
     rx_clock_type = conf.errors.rx_clock
-    P = np.diag([1, 1, 1, 1, 1, 1, 1, 1])
 
     conf = DPEConfiguration(
         is_grid=True,
-        nparticles=1000,
-        P=P,
-        nspheres=NSPHERES,
-        pdelta=PDELTA,
-        vdelta=VDELTA,
-        bdelta=BDELTA,
-        ddelta=DDELTA,
         delay_bias_sigma=DELAY_BIAS_SIGMA,
         delay_bias_resolution=DELAY_BIAS_RESOLUTION,
         drift_bias_resolution=DRIFT_BIAS_RESOLUTION,

@@ -10,9 +10,9 @@ from collections import defaultdict
 from eleventh_hour.navigators import create_padded_df
 
 # sim parameters
-NAVIGATOR = "dpe"
-NSIMS = 10
-JS = np.arange(0, 5, 5, dtype=float)
+NAVIGATOR = "vp"
+NSIMS = 100
+JS = np.arange(0, 45, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -134,6 +134,10 @@ def process_mc_results(time: np.ndarray, mc_results: dict):
             value = np.array(value)
             rms_value = np.sqrt(np.mean(value**2, axis=-1))
             results[new_key] = rms_value
+
+            new_key = f"final_{key}"
+            value = np.array(value).T[-1]
+            results[new_key] = value
 
     return dict(results)
 
