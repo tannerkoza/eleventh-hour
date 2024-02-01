@@ -18,6 +18,15 @@ class ReceiverStates:
     clock_drift: ndarray
 
 
+@dataclass(repr=False)
+class ParticleStates:
+    pos: ndarray
+    vel: ndarray
+    clock_bias: ndarray
+    clock_drift: ndarray
+    weights: np.ndarray
+
+
 @dataclass(frozen=True, repr=False)
 class ChannelErrors:
     chip: defaultdict
@@ -245,6 +254,16 @@ def process_state_results(
     vel_error = truth_enu_vel - enu_vel
     clock_bias_error = truth.clock_bias - clock_bias
     clock_drift_error = truth.clock_drift - clock_drift
+
+    rmspe = np.sqrt(np.mean(np.linalg.norm(pos_error, axis=0) ** 2))
+    rmsve = np.sqrt(np.mean(np.linalg.norm(vel_error, axis=0) ** 2))
+    rmscbe = np.sqrt(np.mean(clock_bias_error**2))
+    rmscde = np.sqrt(np.mean(clock_drift_error**2))
+
+    print(f"Position RMSE [m]: {'{:.3f}'.format(rmspe)}")
+    print(f"Velocity RMSE [m/s]: {'{:.3f}'.format(rmsve)}")
+    print(f"Clock Bias RMSE [m]: {'{:.3f}'.format(rmscbe)}")
+    print(f"Clock Drift RMSE [m/s]: {'{:.3f}'.format(rmscde)}")
 
     states = StateResults(
         time=truth.time,

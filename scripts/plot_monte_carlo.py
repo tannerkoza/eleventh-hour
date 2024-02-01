@@ -7,10 +7,10 @@ from collections import defaultdict
 from pathlib import Path
 
 # user-defined variables
-MC_DIR_NAME = "ppnt"
-RE_EXPR = "gps|iridium|vp|dpe"
+MC_DIR_NAME = "ppnt/dynamic"
+RE_EXPR = "gps|iridium|vp|dpe|dynamic|static"
 TITLES = ["East", "North", "Up"]
-CONTEXT = "paper"
+CONTEXT = "talk"
 MARKER_SIZE = 10
 CMAP = "viridis"
 CN0_AXIS = "Nominal $C/N_{0}$ Attenuation [dB]"
@@ -56,10 +56,28 @@ def plot():
         sorted_js_indices = np.argsort(js)
 
         ptrack = np.array([js["mean_ptrack"] for js in data.values()]) * 100.0
-        rmspe = np.array([js["rms_pos_error"] for js in data.values()]).mean(axis=1).T
-        rmsve = np.array([js["rms_vel_error"] for js in data.values()]).mean(axis=1).T
-        rmscbe = np.array([js["rms_cb_error"] for js in data.values()]).mean(axis=1)
-        rmscde = np.array([js["rms_cd_error"] for js in data.values()]).mean(axis=1)
+        final_pos_error = np.array(
+            [np.linalg.norm(js["final_pos_error"], axis=0) for js in data.values()]
+        )
+        final_vel_error = np.array(
+            [np.linalg.norm(js["final_vel_error"], axis=0) for js in data.values()]
+        )
+        final_cb_error = np.array([js["final_cb_error"] for js in data.values()])
+        final_cd_error = np.array([js["final_cd_error"] for js in data.values()])
+        rmspe = np.sqrt(np.mean(final_pos_error**2, axis=1))
+        rmsve = np.sqrt(np.mean(final_vel_error**2, axis=1))
+        rmscbe = np.sqrt(np.mean(final_cb_error**2, axis=1))
+        rmscde = np.sqrt(np.mean(final_cd_error**2, axis=1))
+        # rmspe = np.linalg.norm(
+        #     np.array([js["rms_pos_error"] for js in data.values()]).mean(axis=1).T,
+        #     axis=0,
+        # )
+        # rmsve = np.linalg.norm(
+        #     np.array([js["rms_vel_error"] for js in data.values()]).mean(axis=1).T,
+        #     axis=0,
+        # )
+        # rmscbe = np.array([js["rms_cb_error"] for js in data.values()]).mean(axis=1)
+        # rmscde = np.array([js["rms_cd_error"] for js in data.values()]).mean(axis=1)
 
         ptrack_ax.plot(
             sorted_js,
@@ -80,7 +98,7 @@ def plot():
         rmspe_ax.set_yscale("log")
         rmspe_ax.plot(
             sorted_js,
-            np.linalg.norm(rmspe, axis=0)[sorted_js_indices],
+            rmspe[sorted_js_indices],
             marker="*",
             label=name,
             markersize=MARKER_SIZE,
@@ -89,7 +107,7 @@ def plot():
         rmsve_ax.set_yscale("log")
         rmsve_ax.plot(
             sorted_js,
-            np.linalg.norm(rmsve, axis=0)[sorted_js_indices],
+            rmsve[sorted_js_indices],
             marker="*",
             label=name,
             markersize=MARKER_SIZE,

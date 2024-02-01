@@ -12,6 +12,7 @@ from eleventh_hour.navigators import (
     DPEConfiguration,
     DPEConfiguration,
     ReceiverStates,
+    ParticleStates,
 )
 
 
@@ -94,6 +95,7 @@ class DirectPositioning:
         self.__rx_states = []
         self.__covariances = []
         self.__particles = []
+        self.__weights = []
 
     @property
     def rx_states(self):
@@ -110,14 +112,17 @@ class DirectPositioning:
     @property
     def particles(self):
         log = np.array(self.__particles)
-        rx_states = ReceiverStates(
+        weights = np.array(self.__weights)
+
+        particle_states = ParticleStates(
             pos=log[:, :6:2],
             vel=log[:, 1:7:2],
             clock_bias=log[:, 6],
             clock_drift=log[:, 7],
+            weights=weights,
         )
 
-        return rx_states
+        return particle_states
 
     @property
     def covariances(self):
@@ -174,10 +179,6 @@ class DirectPositioning:
             qpower = np.sum(sys_quadrature, axis=0) ** 2
             sys_power = ipower + qpower
 
-            scaled_sys_power = (sys_power - np.min(sys_power)) / (
-                np.max(sys_power) - np.min(sys_power)
-            )
-
             norm_sys_power = sys_power / np.sum(sys_power)
 
             norm_sys_powers.append(norm_sys_power)
@@ -198,6 +199,7 @@ class DirectPositioning:
 
         self.weights = weights / np.sum(weights)
         self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
+        self.log_particles()
 
         self.covariance = np.cov(self.epoch_particles, aweights=self.weights)
 
@@ -213,6 +215,7 @@ class DirectPositioning:
 
     def log_particles(self):
         self.__particles.append(self.epoch_particles.copy())
+        self.__weights.append(self.weights.copy())
 
     # private
     def __init_grid_particles(self):

@@ -516,6 +516,7 @@ def pf_animation(
     truth: np.ndarray,
     rx: np.ndarray,
     particles: np.ndarray,
+    weights: np.ndarray,
     output_dir: Path,
 ):
     fig, ax = plt.subplots()
@@ -526,8 +527,9 @@ def pf_animation(
 
     t = ax.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
     r = ax.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
+
     p = ax.scatter(
-        particles[0, 0], particles[1, 0], c="darkblue", s=5, label="particles"
+        particles[0, 0], particles[1, 0], c="darkblue", s=10, label="particles"
     )
 
     ax.set_xlabel("East [m]")
@@ -561,11 +563,12 @@ def pf_animation(
         yticklabels=[],
     )
 
-    tz = axins.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
-    rz = axins.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
     pz = axins.scatter(
         particles[0, 0], particles[1, 0], c="darkblue", s=5, label="particles"
     )
+    rz = axins.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
+    tz = axins.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
+
     ax.indicate_inset_zoom(axins, edgecolor="black")
     ax.axis("equal")
     axins.axis("equal")
@@ -579,17 +582,19 @@ def pf_animation(
         rnorth = rx[1, frame]
         peast = particles[0, frame]
         pnorth = particles[1, frame]
+        alphas = calculate_alphas(weights=weights[frame])
 
         pdata = np.stack([peast, pnorth]).T
         p.set_offsets(pdata)
-        t.set_data([truth[0, :frame]], [truth[1, :frame]])
+        p.set_alpha(alphas)
         r.set_data([rx[0, :frame]], [rx[1, :frame]])
+        t.set_data([truth[0, :frame]], [truth[1, :frame]])
 
         x_half_range = np.abs(peast.max() - peast.min()) / 2
         y_half_range = np.abs(pnorth.max() - pnorth.min()) / 2
         half_range = max(x_half_range, y_half_range)
 
-        BUFFER = 1.1
+        BUFFER = 1.25
 
         x1 = reast - half_range * BUFFER
         x2 = reast + half_range * BUFFER
@@ -597,8 +602,9 @@ def pf_animation(
         y2 = rnorth + half_range * BUFFER
 
         pz.set_offsets(pdata)
-        tz.set_data([truth[0, :frame]], [truth[1, :frame]])
+        pz.set_alpha(alphas)
         rz.set_data([rx[0, :frame]], [rx[1, :frame]])
+        tz.set_data([truth[0, :frame]], [truth[1, :frame]])
 
         axins.set_xlim(x1, x2)
         axins.set_ylim(y1, y2)
@@ -606,6 +612,14 @@ def pf_animation(
         ax.indicate_inset_zoom(axins, edgecolor="black")
 
         return p
+
+    def calculate_alphas(weights: np.ndarray):
+        if np.all(weights == weights[0]):
+            alphas = np.ones_like(weights)
+        else:
+            alphas = (weights - np.min(weights)) / (np.max(weights) - np.min(weights))
+
+        return alphas
 
     ani = animation.FuncAnimation(
         fig=fig, func=update, frames=nframes, interval=interval

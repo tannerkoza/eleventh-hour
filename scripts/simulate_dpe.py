@@ -24,10 +24,10 @@ IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
 PROCESS_NOISE_SIGMA = 0.5
-DELAY_BIAS_SIGMA = 3
-DRIFT_BIAS_SIGMA = 0.1
-DELAY_BIAS_RESOLUTION = 0.01
-DRIFT_BIAS_RESOLUTION = 0.01
+DELAY_BIAS_SIGMA = 15
+DRIFT_BIAS_SIGMA = 3
+DELAY_BIAS_RESOLUTION = 0.1
+DRIFT_BIAS_RESOLUTION = 0.1
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
@@ -75,7 +75,7 @@ def simulate(
         emitter_states = sim_emitter_states.ephemeris
 
     # navigator setup
-    rx_pos0 = sim_rx_states.pos[0]  # + DELAY_BIAS_SIGMA * np.random.randn(3)
+    rx_pos0 = sim_rx_states.pos[0]
     rx_vel0 = sim_rx_states.vel[0]
     rx_clock_bias0 = sim_rx_states.clock_bias[0]
     rx_clock_drift0 = sim_rx_states.clock_drift[0]
@@ -106,8 +106,6 @@ def simulate(
         desc="[eleventh-hour] simulating correlators",
         disable=disable_progress,
     ):
-        dpe.log_particles()  # logged here to include initial grid
-
         particle_pranges, particle_prange_rates = dpe.predict_particle_observables(
             emitter_states=emitter_states[epoch]
         )
@@ -197,6 +195,7 @@ if __name__ == "__main__":
     pf_animation(
         time=results.states.time,
         particles=results.states.particles.pos,
+        weights=results.states.particles.weights,
         truth=results.states.truth_enu_pos,
         rx=results.states.enu_pos,
         output_dir=output_dir,

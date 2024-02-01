@@ -242,9 +242,9 @@ if __name__ == "__main__":
         lon=results.states.truth_lla[1],
         output_dir=output_dir,
     )
-    plot_states(states=results.states, output_dir=output_dir)
-    plot_errors(errors=results.errors, output_dir=output_dir)
-    plot_covariances(cov=results.covariances, output_dir=output_dir)
+    plot_states(states=results.states, output_dir=output_dir, label="vdfll")
+    plot_errors(errors=results.errors, output_dir=output_dir, label="vdfll")
+    plot_covariances(cov=results.covariances, output_dir=output_dir, label="vdfll")
     plot_channel_errors(
         time=results.states.time,
         channel_errors=results.channel_errors,
