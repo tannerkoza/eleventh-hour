@@ -39,7 +39,7 @@ def create_spread_grid(delta: float | list, nspheres: int | list, ntiles: int = 
     return grid
 
 
-class DirectPositioning:
+class OpportunisticDirectPositioning:
     def __init__(self, conf: DPEConfiguration) -> None:
         # tuning
         self.nspheres = conf.nspheres
@@ -165,7 +165,7 @@ class DirectPositioning:
 
         return pranges, prange_rates
 
-    def estimate_state(self, inphase: np.ndarray, quadrature: np.ndarray):
+    def gnss_update(self, inphase: np.ndarray, quadrature: np.ndarray):
         systems = np.unique(self.channel_systems)
 
         norm_sys_powers = []
@@ -195,10 +195,28 @@ class DirectPositioning:
 
         # last_log_weights = np.log(self.weights)
         # new_log_weights = last_log_weights + scaled_total_power
-        # weights = np.exp(new_log_weights - np.max(new_log_weights)) ** 2
+        # pdf = np.exp(new_log_weights - np.max(new_log_weights)) ** 2
 
-        weights = self.weights * total_power**2
+        # self.gnss_weights = pdf / np.sum(pdf)
+        self.gnss_weights = total_power / np.sum(total_power)
+        # self.gnss_covariance = np.cov(self.epoch_particles, aweights=self.gnss_weights)
 
+    def leo_update(
+        self,
+        meas_prange_rates: np.ndarray,
+        est_prange_rates: np.ndarray,
+        covariance: np.ndarray,
+    ):
+        lh = np.ones(self.nparticles)
+        for sv, meas in enumerate(meas_prange_rates):
+            residual = meas - est_prange_rates[sv]
+            lh *= np.exp(-0.5 * residual**2 * (1 / covariance))
+
+        self.leo_weights = lh / np.sum(lh)
+        # self.leo_covariance = np.cov(self.epoch_particles, aweights=self.leo_weights)
+
+    def estimate_state(self):
+        weights = self.weights * (self.gnss_weights * self.leo_weights) ** 2
         self.weights = weights / np.sum(weights)
         self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
         self.log_particles()

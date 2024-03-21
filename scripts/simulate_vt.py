@@ -1,6 +1,7 @@
 import numpy as np
 import navsim as ns
 import navtools as nt
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
@@ -210,6 +211,11 @@ if __name__ == "__main__":
 
     # TODO: clean this nonsense
 
+    COLORS = ["#D4586D", "#8CBCE8", "#73C283", "#D18ED2"]
+    # plt.rcParams["figure.figsize"] = (8, 6)
+
+    sns.set_palette(sns.color_palette(COLORS))
+
     plt.close()
     plt.figure()
     azimuth = defaultdict(lambda: defaultdict(lambda: []))
@@ -226,20 +232,21 @@ if __name__ == "__main__":
         names = list(azimuth[constellation].keys())
 
         skyplot(
-            az=az,
-            el=el,
-            label=constellation,
+            az=az[:, ::250],
+            el=el[:, ::250],
+            label=constellation.lower(),
             name=names,
             deg=False,
+            s=10,
         )
 
-    plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
+    # plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
     plt.tight_layout()
-    plt.savefig(fname=output_dir / "skyplot")
+    plt.savefig(fname=output_dir / "skyplot.png")
 
     geoplot(
-        lat=results.states.truth_lla[0],
-        lon=results.states.truth_lla[1],
+        lat=results.states.truth_lla[0, ::50],
+        lon=results.states.truth_lla[1, ::50],
         output_dir=output_dir,
     )
     plot_states(states=results.states, output_dir=output_dir, label="vdfll")

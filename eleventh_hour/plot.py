@@ -27,6 +27,15 @@ from eleventh_hour.navigators import (
     CovarianceResults,
 )
 
+TYPES = [".svg", ".png"]
+
+
+def save_figs(filename=Path, types=[".png"]):
+    fig = plt.gcf()
+
+    for t in types:
+        fig.savefig(filename.with_suffix(t))
+
 
 def geoplot(lat, lon, tiles="satellite", output_dir: Path = None, **kwargs):
     match tiles:
@@ -60,9 +69,12 @@ def geoplot(lat, lon, tiles="satellite", output_dir: Path = None, **kwargs):
 
     # add site
     ax.scatter(lon, lat, transform=data_crs, **kwargs)
+    ax.scatter(
+        lon[0], lat[0], transform=data_crs, label="initial position", s=100, marker="*"
+    )
 
     gl = ax.gridlines(
-        draw_labels=True, crs=data_crs, color="k", lw=0.5, auto_update=True
+        draw_labels=True, crs=data_crs, color="#C5C9C7", lw=0.1, auto_update=True
     )
 
     gl.top_labels = False
@@ -70,9 +82,11 @@ def geoplot(lat, lon, tiles="satellite", output_dir: Path = None, **kwargs):
     gl.xformatter = ct.mpl.gridliner.LONGITUDE_FORMATTER
     gl.yformatter = ct.mpl.gridliner.LATITUDE_FORMATTER
 
+    plt.legend()
+
     if output_dir is not None:
         plt.tight_layout()
-        plt.savefig(output_dir / "geoplot")
+        save_figs(output_dir / "geoplot", types=TYPES)
 
     return ax
 
@@ -201,7 +215,7 @@ def plot_states(states: StateResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "trajectory")
+        save_figs(output_dir / "trajectory", types=TYPES)
 
     # position
     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
@@ -218,7 +232,7 @@ def plot_states(states: StateResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "pos")
+        save_figs(output_dir / "pos", types=TYPES)
 
     # velocity
     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True)
@@ -235,7 +249,7 @@ def plot_states(states: StateResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "vel")
+        save_figs(output_dir / "vel", types=TYPES)
 
     # clock bias
     plt.figure()
@@ -247,7 +261,7 @@ def plot_states(states: StateResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cb")
+        save_figs(output_dir / "cb", types=TYPES)
 
     # clock drift
     plt.figure()
@@ -259,7 +273,7 @@ def plot_states(states: StateResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cd")
+        save_figs(output_dir / "cd", types=TYPES)
 
 
 def plot_covariances(cov: CovarianceResults, output_dir: Path = None, **kwargs):
@@ -277,7 +291,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "pos_cov")
+        save_figs(output_dir / "pos_cov", types=TYPES)
 
     # velocity
     fig, axes = plt.subplots(nrows=3, ncols=1, sharey=True, sharex=True)
@@ -293,7 +307,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "vel_cov")
+        save_figs(output_dir / "vel_cov", types=TYPES)
 
     # clock bias
     plt.figure()
@@ -304,7 +318,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cb_cov")
+        save_figs(output_dir / "cb_cov", types=TYPES)
 
     # clock drift
     plt.figure()
@@ -315,7 +329,7 @@ def plot_covariances(cov: CovarianceResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cd_cov")
+        save_figs(output_dir / "cd_cov", types=TYPES)
 
 
 def plot_errors(errors: ErrorResults, output_dir: Path = None, **kwargs):
@@ -338,7 +352,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "pos_error")
+        save_figs(output_dir / "pos_error", types=TYPES)
 
     # velocity error
     fig, axes = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True)
@@ -356,7 +370,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "vel_error")
+        save_figs(output_dir / "vel_error", types=TYPES)
 
     # clock bias error
     plt.figure()
@@ -367,7 +381,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cb_error")
+        save_figs(output_dir / "cb_error", types=TYPES)
 
     # clock drift error
     plt.figure()
@@ -378,7 +392,7 @@ def plot_errors(errors: ErrorResults, output_dir: Path = None, **kwargs):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cd_error")
+        save_figs(output_dir / "cd_error", types=TYPES)
 
 
 def plot_channel_errors(
@@ -412,7 +426,7 @@ def plot_channel_errors(
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "chip_disc")
+        save_figs(output_dir / "chip_disc", types=TYPES)
 
     # frequency discriminator
     plt.figure()
@@ -428,7 +442,7 @@ def plot_channel_errors(
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "freq_disc")
+        save_figs(output_dir / "freq_disc", types=TYPES)
 
     # pseudorange discriminator
     plt.figure()
@@ -440,7 +454,7 @@ def plot_channel_errors(
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "prange_disc")
+        save_figs(output_dir / "prange_disc", types=TYPES)
 
     # pseudorange rate discriminator
     plt.figure()
@@ -456,7 +470,7 @@ def plot_channel_errors(
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "prange_rate_disc")
+        save_figs(output_dir / "prange_rate_disc", types=TYPES)
 
 
 def plot_correlators(
@@ -488,7 +502,7 @@ def plot_correlators(
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "pdi_power")
+        save_figs(output_dir / "pdi_power", types=TYPES)
 
 
 def plot_cn0s(time: np.ndarray, cn0s: dict, output_dir: Path = None):
@@ -508,7 +522,7 @@ def plot_cn0s(time: np.ndarray, cn0s: dict, output_dir: Path = None):
     plt.tight_layout()
 
     if output_dir is not None:
-        plt.savefig(output_dir / "cn0s")
+        save_figs(output_dir / "cn0s", types=TYPES)
 
 
 def pf_animation(
@@ -572,6 +586,7 @@ def pf_animation(
     ax.indicate_inset_zoom(axins, edgecolor="black")
     ax.axis("equal")
     axins.axis("equal")
+    ax.grid(lw=0.5)
     ax.legend(loc="upper right")
 
     def update(frame):
@@ -594,7 +609,7 @@ def pf_animation(
         y_half_range = np.abs(pnorth.max() - pnorth.min()) / 2
         half_range = max(x_half_range, y_half_range)
 
-        BUFFER = 1.25
+        BUFFER = 5
 
         x1 = reast - half_range * BUFFER
         x2 = reast + half_range * BUFFER
@@ -608,6 +623,7 @@ def pf_animation(
 
         axins.set_xlim(x1, x2)
         axins.set_ylim(y1, y2)
+        ax.grid(lw=0.5)
 
         ax.indicate_inset_zoom(axins, edgecolor="black")
 

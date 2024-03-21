@@ -10,7 +10,7 @@ from eleventh_hour.trajectories import prepare_trajectories
 
 DURATION = 300
 TSIM = 0.02
-FEBW = 100000 * 6.138e6
+FEBW = 4.092e6
 FCHIP = 1.023e6
 JS = np.arange(0, 45, 5, dtype=float)
 INTITAL_TIME = datetime(year=2023, month=12, day=4, second=18)
@@ -57,7 +57,7 @@ meas_sim = ns.get_signal_simulation(
 
 zzbs = []
 
-R = np.eye(3)
+R = 900 * np.eye(3)
 
 for js in JS:
     # set current js

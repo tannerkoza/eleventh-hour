@@ -424,8 +424,8 @@ class VDFLL:
 
         first_ip = np.mean(split_ip[0], axis=0)
         first_qp = np.mean(split_qp[0], axis=0)
-        last_ip = np.mean(split_ip[1], axis=0) + np.random.randn(split_ip[1].size)
-        last_qp = np.mean(split_qp[1], axis=0) + np.random.randn(split_ip[1].size)
+        last_ip = np.mean(split_ip[1], axis=0)
+        last_qp = np.mean(split_qp[1], axis=0)
 
         # frequency discriminator
         cross = first_ip * last_qp - last_ip * first_qp
@@ -475,8 +475,6 @@ def compute_prange_residual_var(cn0: np.ndarray, T: float, chip_length: float):
 @njit(cache=True)
 def compute_prange_rate_residual_var(cn0: np.ndarray, T: float, wavelength: float):
     cn0 = 10 ** (cn0 / 10)
-    var = (wavelength / (np.pi * T)) ** 2 * (
-        2 / ((T) ** 2 * cn0**2) + 2 / ((T) * cn0)
-    )
+    var = (wavelength / (np.pi * T)) ** 2 * (2 / ((T) ** 2 * cn0**2) + 2 / ((T) * cn0))
 
     return var

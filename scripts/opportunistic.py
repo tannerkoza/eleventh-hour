@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from eleventh_hour.navigators import *
 from eleventh_hour.trajectories import prepare_trajectories
-from eleventh_hour.navigators.dpe import DirectPositioning
+from eleventh_hour.navigators.opportunistic_dpe import OpportunisticDirectPositioning
 
 import matplotlib.pyplot as plt
 from eleventh_hour.plot import (
@@ -38,44 +38,54 @@ TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
 
 def setup_simulation(disable_progress: bool = False):
     # sim setup
-    conf = ns.get_configuration(configuration_path=CONFIG_PATH)
+    gps_conf = ns.get_configuration(configuration_path=CONFIG_PATH)
+    leo_conf = ns.get_configuration(configuration_path=CONFIG_PATH)
 
     rx_pos, rx_vel = prepare_trajectories(
-        file_path=TRAJECTORY_PATH.with_suffix(".csv"), fsim=conf.time.fsim
+        file_path=TRAJECTORY_PATH.with_suffix(".csv"), fsim=gps_conf.time.fsim
     )  # upsamples trajectories to fsim
 
     if IS_STATIC:
         rx_pos = rx_pos[0]
         rx_vel = np.zeros_like(rx_pos)
 
-    meas_sim = __generate_truth(
-        conf=conf, rx_pos=rx_pos, rx_vel=rx_vel, disable_progress=disable_progress
+    gps_meas_sim = __generate_truth(
+        conf=gps_conf, rx_pos=rx_pos, rx_vel=rx_vel, disable_progress=disable_progress
     )
-    corr_sim = ns.CorrelatorSimulation(configuration=conf)
+    leo_meas_sim = __generate_truth(
+        conf=leo_conf, rx_pos=rx_pos, rx_vel=rx_vel, disable_progress=disable_progress
+    )
+    corr_sim = ns.CorrelatorSimulation(configuration=gps_conf)
 
-    return conf, meas_sim, corr_sim
+    return gps_conf, gps_meas_sim, leo_meas_sim, corr_sim
 
 
 def simulate(
     conf: ns.SimulationConfiguration,
-    meas_sim: ns.MeasurementSimulation,
+    gps_meas_sim: ns.MeasurementSimulation,
+    leo_meas_sim: ns.MeasurementSimulation,
     corr_sim: ns.CorrelatorSimulation,
     disable_progress: bool = False,
 ):
     # measurement simulation
-    meas_sim.simulate()
+    gps_meas_sim.simulate()
+    leo_meas_sim.simulate()
 
-    sim_emitter_states = meas_sim.emitter_states
-    sim_observables = meas_sim.observables
-    sim_rx_states = meas_sim.rx_states
+    gps_sim_emitter_states = gps_meas_sim.emitter_states
+    leo_sim_emitter_states = leo_meas_sim.emitter_states
+    gps_sim_observables = gps_meas_sim.observables
+    leo_sim_observables = leo_meas_sim.observables
+    sim_rx_states = gps_meas_sim.rx_states
 
     if IS_EMITTER_TYPE_TRUTH:
-        emitter_states = sim_emitter_states.truth
+        gps_emitter_states = gps_sim_emitter_states.truth
     else:
-        emitter_states = sim_emitter_states.ephemeris
+        gps_emitter_states = gps_sim_emitter_states.ephemeris
+
+    leo_emitter_states = leo_sim_emitter_states.truth
 
     # navigator setup
-    rx_pos0 = sim_rx_states.pos[0] 
+    rx_pos0 = sim_rx_states.pos[0]
     rx_vel0 = sim_rx_states.vel[0]
     rx_clock_bias0 = sim_rx_states.clock_bias[0]
     rx_clock_drift0 = sim_rx_states.clock_drift[0]
@@ -97,17 +107,17 @@ def simulate(
         T=1 / conf.time.fsim,
     )
 
-    dpe = DirectPositioning(conf=conf)
+    dpe = OpportunisticDirectPositioning(conf=conf)
 
     # simulate
     for epoch, observables in tqdm(
-        enumerate(sim_observables),
-        total=len(sim_observables),
+        enumerate(gps_sim_observables),
+        total=len(gps_sim_observables),
         desc="[eleventh-hour] simulating correlators",
         disable=disable_progress,
     ):
         particle_pranges, particle_prange_rates = dpe.predict_particle_observables(
-            emitter_states=emitter_states[epoch]
+            emitter_states=gps_emitter_states[epoch]
         )
 
         corr_sim.compute_errors(
@@ -117,13 +127,27 @@ def simulate(
         )
         corr = corr_sim.correlate(include_subcorrelators=False)
 
-        dpe.estimate_state(inphase=corr.inphase, quadrature=corr.quadrature)
+        dpe.gnss_update(inphase=corr.inphase, quadrature=corr.quadrature)
 
+        leo_psr_rate = [
+            observables.pseudorange_rate + sim_rx_states.clock_drift[epoch]
+            for observables in leo_sim_observables[epoch].values()
+        ]
+        _, particle_prange_rates = dpe.predict_particle_observables(
+            emitter_states=leo_emitter_states[epoch]
+        )
+        dpe.leo_update(
+            meas_prange_rates=leo_psr_rate,
+            est_prange_rates=particle_prange_rates,
+            covariance=0.01,
+        )
+
+        dpe.estimate_state()
         dpe.time_update(T=conf.T)
 
         # logging
         est_pranges, est_prange_rates = dpe.predict_estimate_observables(
-            emitter_states=emitter_states[epoch]
+            emitter_states=gps_emitter_states[epoch]
         )
         corr_sim.compute_errors(
             observables=observables,
@@ -181,14 +205,16 @@ def __generate_truth(
 
 
 if __name__ == "__main__":
-    conf, meas_sim, corr_sim = setup_simulation()
-    results = simulate(conf=conf, meas_sim=meas_sim, corr_sim=corr_sim)
+    conf, meas_sim, leo_meas_sim, corr_sim = setup_simulation()
+    results = simulate(
+        conf=conf, gps_meas_sim=meas_sim, leo_meas_sim=leo_meas_sim, corr_sim=corr_sim
+    )
 
     now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
     output_dir = (
         DATA_PATH
         / "figures"
-        / f"{now}_DPE_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
+        / f"{now}_ODPE_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
