@@ -2,7 +2,8 @@ import numpy as np
 
 from pathlib import Path
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
-from navtools.conversions import lla2ecef
+from scipy.signal import butter, sosfiltfilt
+from navtools.conversions import lla2ecef, ecef2enu
 
 
 def prepare_trajectories(file_path: str | Path, fsim: float):
@@ -20,9 +21,16 @@ def prepare_trajectories(file_path: str | Path, fsim: float):
 
     ecef_pos = np.array(lla2ecef(lat=lat, lon=lon, alt=alt)).T
 
-    cs = CubicSpline(x=file_time, y=ecef_pos)
+    sos = butter(4, 0.1, output="sos")
+    filt_ecef_pos = sosfiltfilt(sos, ecef_pos.T).T
+
+    cs = CubicSpline(x=file_time, y=filt_ecef_pos)
     rx_pos = cs(sim_time)
     rx_vel = cs(sim_time, 1)
+
+    max_speed = np.max(np.linalg.norm(rx_vel, axis=1))
+
+    print(f"Max Speed: {max_speed}")
 
     return rx_pos, rx_vel
 

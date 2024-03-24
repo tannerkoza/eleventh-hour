@@ -11,7 +11,7 @@ constellations:
   emitters:
     gps:
       signal: gpsl1ca
-      js: 0.0
+      js: 40.0
       correlator_model: bpsk
     iridium-next:
       signal: auburn

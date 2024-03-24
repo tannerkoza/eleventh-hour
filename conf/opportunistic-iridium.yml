@@ -9,10 +9,10 @@ time:
 constellations:
   mask_angle: 10.0 # [deg]
   emitters:
-    gps:
-      signal: gpsl1ca
-      js: 40.0
+    iridium-next:
+      signal: auburn
+      js: 0.0
       correlator_model: bpsk
 
 errors:
-  rx_clock: "hiqh_quality_tcxo"
+  pseudorange_rate_awgn_sigma: True

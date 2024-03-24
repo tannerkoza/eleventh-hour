@@ -18,12 +18,12 @@ from eleventh_hour.plot import (
 )
 
 # sim parameters
-TRAJECTORY = "daytona_500_sdx_1s_loop"
+TRAJECTORY = "flight_australia_sdx_1s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
-PROCESS_NOISE_SIGMA = 0.5
+PROCESS_NOISE_SIGMA = 6
 DELAY_BIAS_SIGMA = 15
 DRIFT_BIAS_SIGMA = 3
 DELAY_BIAS_RESOLUTION = 0.1
@@ -127,7 +127,7 @@ def simulate(
         )
         corr = corr_sim.correlate(include_subcorrelators=False)
 
-        dpe.gnss_update(inphase=corr.inphase, quadrature=corr.quadrature)
+        dpe.dpe_update(inphase=corr.inphase, quadrature=corr.quadrature)
 
         leo_psr_rate = [
             observables.pseudorange_rate + sim_rx_states.clock_drift[epoch]
@@ -136,7 +136,7 @@ def simulate(
         _, particle_prange_rates = dpe.predict_particle_observables(
             emitter_states=leo_emitter_states[epoch]
         )
-        dpe.leo_update(
+        dpe.doppler_update(
             meas_prange_rates=leo_psr_rate,
             est_prange_rates=particle_prange_rates,
             covariance=0.01,

@@ -75,10 +75,11 @@ class DirectPositioning:
         )
 
         # particles
+        self.delay_bias_sigma = conf.delay_bias_sigma
+        self.drift_bias_sigma = conf.drift_bias_sigma
+
         if conf.is_grid:
-            self.delay_bias_sigma = conf.delay_bias_sigma
             self.delay_bias_resolution = conf.delay_bias_resolution
-            self.drift_bias_sigma = conf.drift_bias_sigma
             self.drift_bias_resolution = conf.drift_bias_resolution
 
             # self.nspheres = conf.nspheres
@@ -86,7 +87,6 @@ class DirectPositioning:
             self.__init_grid_particles()
         else:
             self.nparticles = conf.nparticles
-            self.P = conf.P
             self.__init_rng_particles()
 
         self.weights = (1 / self.nparticles) * np.ones(self.nparticles)
@@ -168,7 +168,7 @@ class DirectPositioning:
     def estimate_state(self, inphase: np.ndarray, quadrature: np.ndarray):
         systems = np.unique(self.channel_systems)
 
-        norm_sys_powers = []
+        sys_powers = np.ones(self.nparticles)
         for system in systems:
             sys_indices = (self.channel_systems == system).nonzero()
 
@@ -179,25 +179,9 @@ class DirectPositioning:
             qpower = np.sum(sys_quadrature, axis=0) ** 2
             sys_power = ipower + qpower
 
-            norm_sys_power = sys_power / np.sum(sys_power)
+            sys_powers *= sys_power
 
-            norm_sys_powers.append(norm_sys_power)
-
-        total_norm_powers = np.sum(norm_sys_powers, axis=0) ** 2
-        norm_sys_weights = total_norm_powers / np.sum(total_norm_powers)
-
-        ipower = np.sum(inphase, axis=1) ** 2
-        qpower = np.sum(quadrature, axis=1) ** 2
-        total_power = norm_sys_weights * (ipower + qpower)
-        # scaled_total_power = (total_power - np.min(total_power)) / (
-        #     np.max(total_power) - np.min(total_power)
-        # )
-
-        # last_log_weights = np.log(self.weights)
-        # new_log_weights = last_log_weights + scaled_total_power
-        # weights = np.exp(new_log_weights - np.max(new_log_weights)) ** 2
-
-        weights = self.weights * total_power**2
+        weights = self.weights * sys_powers
 
         self.weights = weights / np.sum(weights)
         self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
@@ -247,8 +231,24 @@ class DirectPositioning:
         self.epoch_particles = np.transpose(self.rx_state + self.deltas)
 
     def __init_rng_particles(self):
+        pb_sigma = (self.delay_bias_sigma) / 2
+        vd_sigma = (self.drift_bias_sigma) / 2
+
+        P = np.diag(
+            [
+                pb_sigma,
+                vd_sigma,
+                pb_sigma,
+                vd_sigma,
+                pb_sigma,
+                vd_sigma,
+                pb_sigma,
+                vd_sigma,
+            ]
+        )
+
         self.epoch_particles = np.random.multivariate_normal(
-            mean=self.rx_state, cov=self.P, size=self.nparticles
+            mean=self.rx_state, cov=P, size=self.nparticles
         ).T
 
     def __compute_A(self):

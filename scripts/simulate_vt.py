@@ -27,12 +27,12 @@ from eleventh_hour.plot import (
 )
 
 # sim parameters
-TRAJECTORY = "daytona_500_sdx_1s_loop"
+TRAJECTORY = "flight_australia_sdx_1s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # vdfll parameters
-PROCESS_NOISE_SIGMA = 0.5
+PROCESS_NOISE_SIGMA = 6
 CORRELATOR_BUFF_SIZE = 250
 TAP_SPACING = 0.5
 NORM_INNOVATION_THRESH = 2.5

@@ -39,7 +39,7 @@ def create_spread_grid(delta: float | list, nspheres: int | list, ntiles: int = 
     return grid
 
 
-class OpportunisticDirectPositioning:
+class DirectPositioning:
     def __init__(self, conf: DPEConfiguration) -> None:
         # tuning
         self.nspheres = conf.nspheres
@@ -143,10 +143,21 @@ class OpportunisticDirectPositioning:
         ).T
         self.epoch_particles = self.A @ self.epoch_particles + process_noise
 
-    def predict_particle_observables(self, emitter_states: dict):
+    def predict_pbias_observables(self, emitter_states: dict):
         pranges, prange_rates = self.__predict_observables(
             emitter_states=emitter_states,
             rx_pos=self.epoch_particles[:6:2],
+            rx_vel=self.rx_state[1:7:2],
+            rx_clock_bias=self.epoch_particles[6],
+            rx_clock_drift=self.epoch_particles[7],
+        )
+
+        return pranges, prange_rates
+
+    def predict_vdrift_observables(self, emitter_states: dict):
+        pranges, prange_rates = self.__predict_observables(
+            emitter_states=emitter_states,
+            rx_pos=self.rx_state[:6:2],
             rx_vel=self.epoch_particles[1:7:2],
             rx_clock_bias=self.epoch_particles[6],
             rx_clock_drift=self.epoch_particles[7],
@@ -165,7 +176,7 @@ class OpportunisticDirectPositioning:
 
         return pranges, prange_rates
 
-    def dpe_update(self, inphase: np.ndarray, quadrature: np.ndarray):
+    def estimate_state(self, inphase: np.ndarray, quadrature: np.ndarray):
         systems = np.unique(self.channel_systems)
 
         sys_powers = np.ones(self.nparticles)
@@ -181,23 +192,8 @@ class OpportunisticDirectPositioning:
 
             sys_powers *= sys_power
 
-        self.dpe_lh = sys_powers
+        weights = self.weights * sys_powers
 
-    def doppler_update(
-        self,
-        meas_prange_rates: np.ndarray,
-        est_prange_rates: np.ndarray,
-        covariance: np.ndarray,
-    ):
-        lh = np.ones(self.nparticles)
-        for sv, meas in enumerate(meas_prange_rates):
-            residual = meas - est_prange_rates[sv]
-            lh *= np.exp(-0.5 * residual**2 * (1 / covariance))
-
-        self.doppler_lh = lh / np.sum(lh)
-
-    def estimate_state(self):
-        weights = self.weights * (self.dpe_lh * self.doppler_lh)
         self.weights = weights / np.sum(weights)
         self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
         self.log_particles()
@@ -220,30 +216,12 @@ class OpportunisticDirectPositioning:
 
     # private
     def __init_grid_particles(self):
-        ndelay_spheres = int(3 * self.delay_bias_sigma / self.delay_bias_resolution)
-        ndrift_spheres = int(3 * self.drift_bias_sigma / self.drift_bias_resolution)
-        self.nparticles = 2 * max(ndelay_spheres, ndrift_spheres) + 1
-
-        delay_deltas = create_spread_grid(
-            delta=self.delay_bias_resolution, nspheres=ndelay_spheres
-        )
-        drift_deltas = create_spread_grid(
-            delta=self.drift_bias_resolution, nspheres=ndrift_spheres
-        )
-
-        delay_points = np.linspace(0, 1, delay_deltas.size)
-        drift_points = np.linspace(0, 1, drift_deltas.size)
-        if delay_deltas.size > drift_deltas.size:
-            drift_deltas = np.interp(delay_points, drift_points, drift_deltas)
-        else:
-            delay_deltas = np.interp(drift_points, delay_points, delay_deltas)
-
-        # / 2 to ensure norm of states == delay/drift deltas
-        pb_deltas = delay_deltas / 2
-        vd_deltas = drift_deltas / 2
-
-        self.deltas = np.tile(np.array([pb_deltas, vd_deltas]), (4, 1)).T
-        self.epoch_particles = np.transpose(self.rx_state + self.deltas)
+        self.pbias_particles = self.rx_state[
+            :6:2
+        ] + 3 * self.delay_bias_sigma * np.random.randn(self.nparticles)
+        self.vdrift_particles = self.rx_state[
+            1:7:2
+        ] + 3 * self.drift_bias_sigma * np.random.randn(self.nparticles)
 
     def __init_rng_particles(self):
         self.epoch_particles = np.random.multivariate_normal(

@@ -18,12 +18,12 @@ from eleventh_hour.plot import (
 )
 
 # sim parameters
-TRAJECTORY = "daytona_500_sdx_1s_loop"
+TRAJECTORY = "flight_australia_sdx_1s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # dpe parameters
-PROCESS_NOISE_SIGMA = 0.5
+PROCESS_NOISE_SIGMA = 6
 DELAY_BIAS_SIGMA = 15
 DRIFT_BIAS_SIGMA = 3
 DELAY_BIAS_RESOLUTION = 0.1
@@ -75,7 +75,7 @@ def simulate(
         emitter_states = sim_emitter_states.ephemeris
 
     # navigator setup
-    rx_pos0 = sim_rx_states.pos[0] 
+    rx_pos0 = sim_rx_states.pos[0]
     rx_vel0 = sim_rx_states.vel[0]
     rx_clock_bias0 = sim_rx_states.clock_bias[0]
     rx_clock_drift0 = sim_rx_states.clock_drift[0]
