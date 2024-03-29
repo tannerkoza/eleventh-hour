@@ -181,7 +181,7 @@ class OpportunisticDirectPositioning:
 
             sys_powers *= sys_power
 
-        self.dpe_lh = sys_powers
+        self.lh = sys_powers
 
     def doppler_update(
         self,
@@ -189,15 +189,12 @@ class OpportunisticDirectPositioning:
         est_prange_rates: np.ndarray,
         covariance: np.ndarray,
     ):
-        lh = np.ones(self.nparticles)
         for sv, meas in enumerate(meas_prange_rates):
             residual = meas - est_prange_rates[sv]
-            lh *= np.exp(-0.5 * residual**2 * (1 / covariance))
-
-        self.doppler_lh = lh / np.sum(lh)
+            self.lh *= np.exp(-0.5 * residual**2 * (1 / covariance))
 
     def estimate_state(self):
-        weights = self.weights * (self.dpe_lh * self.doppler_lh)
+        weights = self.weights * self.lh
         self.weights = weights / np.sum(weights)
         self.rx_state = np.sum(self.weights * self.epoch_particles, axis=-1)
         self.log_particles()

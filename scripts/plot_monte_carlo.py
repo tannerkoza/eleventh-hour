@@ -8,10 +8,10 @@ from matplotlib.colors import LinearSegmentedColormap
 from pathlib import Path
 
 # user-defined variables
-MC_DIR_NAME = "ppnt/dynamic"
-RE_EXPR = "gps|leo|vp|dpe"
+MC_DIR_NAME = "ppnt2/static"
+RE_EXPR = "vp|dpe|gps|leo"
 TITLES = ["East", "North", "Up"]
-CONTEXT = "talk"
+CONTEXT = "paper"
 MARKER_SIZE = 8
 LINEWIDTH = 2
 CN0_AXIS = "GPS $C/N_{0}$ Attenuation [dB]"

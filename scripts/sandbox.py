@@ -56,30 +56,87 @@
 
 # plt.show()
 
-# import numpy as np
-# import pandas as pd
-# import datetime
-# from navsim.emitters import SatelliteEmitters
-# from navsim.emitters import GPSTime
+import numpy as np
+import pandas as pd
+from scipy.io import loadmat
+import datetime
+import matplotlib.pyplot as plt
+from navsim.emitters import SatelliteEmitters
+from navsim.emitters import GPSTime
+from scipy.interpolate import interp1d
 
-# df = pd.read_csv("/home/tannerkoza/devel/eleventh-hour/data/stl2600.csv", header=2)
-# df.columns = df.columns.str.replace(" ", "")
-
-
-# t = df["receiver_clock_time.seconds_of_week"].to_numpy()
-
-# t0 = datetime.datetime(1980, 1, 6, 0, 0, 0, 0, None)
-# t0 += datetime.timedelta(seconds=t[0])
-# t0 += datetime.timedelta(weeks=2277)
-# timeseries = np.linspace(start=0, stop=t[-1] - t[0], num=10000)
-# datetime_series = [t0 + datetime.timedelta(0, time_step) for time_step in timeseries]
+FILE_PATH = "/home/tannerkoza/devel/eleventh-hour/data/stl2600-2.csv"
+RX_POS = np.array([-1520424, -5083133, 3530701])
 
 
-# emitters = SatelliteEmitters(constellations="iridium-next")
-# states = emitters.from_datetimes(
-#     datetimes=datetime_series, rx_pos=np.array([-1520424, -5083133, 3530701])
-# )
+def gpst2utc(week: int, tow: float, leap_seconds: int = 18):
+    GPS_TIME_EPOCH = datetime.datetime(1980, 1, 6, 0, 0, 0, 0, None)
 
+    utc = (
+        GPS_TIME_EPOCH
+        + datetime.timedelta(weeks=int(week))
+        + datetime.timedelta(seconds=tow - leap_seconds)
+    )
+
+    return utc
+
+
+def main():
+    emitters = SatelliteEmitters(
+        constellations="iridium-next", mask_angle=-5, disable_progress=True
+    )
+
+    jl_df = pd.read_csv(FILE_PATH, header=2)
+    jl_df.columns = jl_df.columns.str.replace(" ", "")
+
+    grouped_df = jl_df.groupby(jl_df["sv_data[0].prn"])
+
+    for prn in grouped_df.groups.keys():
+        df = grouped_df.get_group(prn)
+
+        week = df["sv_data[0].sv_data_time.week_number"].to_numpy()
+        tow = df["sv_data[0].sv_data_time.seconds_of_week"].to_numpy()
+        datetimes = np.array([gpst2utc(week=w, tow=sec) for (w, sec) in zip(week, tow)])
+        elapsed_time = np.array(
+            [(dt - datetimes[0]).total_seconds() for dt in datetimes]
+        )
+
+        states = emitters.from_datetimes(datetimes=datetimes, rx_pos=RX_POS)
+
+        prn_pos = df[
+            ["sv_data[0].sv_pos[0]", "sv_data[0].sv_pos[1]", "sv_data[0].sv_pos[2]"]
+        ].to_numpy()
+        prn_vel = df[
+            ["sv_data[0].sv_vel[0]", "sv_data[0].sv_vel[1]", "sv_data[0].sv_vel[2]"]
+        ].to_numpy()
+
+        sv_pos0 = np.array([sv.pos for sv in states[0].values()])
+
+        matched_sv_index = np.argmin(np.linalg.norm(prn_pos[0] - sv_pos0, axis=1))
+        matched_sv = list(states[0].keys())[matched_sv_index]
+
+        matched_pos = np.array([epoch[matched_sv].pos for epoch in states])
+        matched_vel = np.array([epoch[matched_sv].vel for epoch in states])
+
+        pos_error = prn_pos - matched_pos
+        norm_pos_error = np.linalg.norm(pos_error, axis=1)
+        unbiased_norm_pos_error = norm_pos_error - norm_pos_error[0]
+
+        vel_error = prn_vel - matched_vel
+        norm_vel_error = np.linalg.norm(vel_error, axis=1)
+        unbiased_norm_vel_error = norm_vel_error - norm_vel_error[0]
+
+        plt.plot(elapsed_time, norm_pos_error, ".")
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
+
+# f = interp1d(dt_t, sim_pos, kind="cubic", bounds_error=False, fill_value="extrapolate")
+# sim_pos = f(t)
 
 # sv_pos = df[
 #     ["sv_data[0].sv_pos[0]", "sv_data[0].sv_pos[1]", "sv_data[0].sv_pos[2]"]
@@ -88,12 +145,21 @@
 #     ["sv_data[0].sv_vel[0]", "sv_data[0].sv_vel[1]", "sv_data[0].sv_vel[2]"]
 # ].to_numpy()
 
+
+# plt.figure()
+# plt.plot(t, sim_pos[0], ".")
+# # plt.plot(t, sv_pos[:, 0])
+
+# plt.figure()
+# plt.plot(t, sim_pos[1])
+# plt.plot(t, sv_pos[:, 1])
+
+# plt.figure()
+# plt.plot(t, sim_pos[2])
+# plt.plot(t, sv_pos[:, 2])
+
+# plt.figure()
+# error = sim_pos.T - sv_pos
+# plt.plot(t, np.linalg.norm(error, axis=1))
+# plt.show()
 # print()
-
-import numpy as np
-from navtools.signals import bpsk_correlator
-
-ferror = np.arange(-500, 500)
-i, q = bpsk_correlator(0.02, 45, ferror, 0, 0)
-
-print()
