@@ -13,6 +13,10 @@ constellations:
       signal: gpsl1ca
       js: 30.0
       correlator_model: bpsk
+    iridium-next:
+      signal: auburn
+      js: 0.0
+      correlator_model: bpsk
 
 errors:
   rx_clock: "high_quality_tcxo"

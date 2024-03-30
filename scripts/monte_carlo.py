@@ -10,7 +10,7 @@ from collections import defaultdict
 from eleventh_hour.navigators import create_padded_df
 
 # sim parameters
-NAVIGATOR = "vp"
+NAVIGATOR = "dpe"
 NSIMS = 100
 JS = np.arange(0, 45, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]

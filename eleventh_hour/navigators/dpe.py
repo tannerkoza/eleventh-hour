@@ -89,6 +89,8 @@ class DirectPositioning:
             self.nparticles = conf.nparticles
             self.__init_rng_particles()
 
+        print(f"Number of Particles: {self.nparticles}")
+
         self.weights = (1 / self.nparticles) * np.ones(self.nparticles)
 
         # logging
