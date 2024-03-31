@@ -27,7 +27,7 @@ from eleventh_hour.plot import (
 )
 
 # sim parameters
-TRAJECTORY = "flight_australia_sdx_1s_onego"
+TRAJECTORY = "flight_australia_sdx_1s_onego_230s-SKIP"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 

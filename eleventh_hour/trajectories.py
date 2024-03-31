@@ -12,7 +12,7 @@ def prepare_trajectories(file_path: str | Path, fsim: float):
     lat = data[:, 0]
     lon = data[:, 1]
     alt = data[:, 2]
-    file_time = data[:, 3]
+    file_time = data[:, 3] - data[0, 3]
 
     file_T = np.mean(np.diff(file_time))
     sim_T = 1 / fsim

@@ -8,13 +8,12 @@ from matplotlib.colors import LinearSegmentedColormap
 from pathlib import Path
 
 # user-defined variables
-MC_DIR_NAME = "japan/dynamic"
-RE_EXPR = "vp|dpe|gps|iridium|orbcomm"
+MC_DIR_NAME = "efficiency"
 TITLES = ["East", "North", "Up"]
 CONTEXT = "paper"
 MARKER_SIZE = 8
 LINEWIDTH = 2
-CN0_AXIS = "GPS $C/N_{0}$ Attenuation [dB]"
+CN0_AXIS = "Particles [dB]"
 COLORS = ["#D4586D", "#8CBCE8", "#73C283", "#D18ED2"]
 CMAP = LinearSegmentedColormap.from_list("tk", COLORS)
 LINESTYLES = ["-d", "-*", "-o", "->"]
@@ -31,12 +30,12 @@ def load_data():
     data = defaultdict(lambda: defaultdict(lambda: []))
 
     for scenario in sorted(MC_PATH.glob("*")):
-        name = scenario.name.casefold()
-        key = "-".join(re.findall(RE_EXPR, name))
+        name = scenario.stem.casefold()
+        key = name.replace("_", " ")
 
         for monte_carlo in scenario.glob("*.npz"):
-            current_js = int(re.findall(r"\d+", monte_carlo.stem)[0])
-            data[key][current_js] = np.load(monte_carlo)
+            current_nparticles = int(re.findall(r"\d+", monte_carlo.stem)[0])
+            data[key][current_nparticles] = np.load(monte_carlo)
 
     return data
 
@@ -56,9 +55,9 @@ def plot():
     rmscde_fig, rmscde_ax = plt.subplots()
 
     for (name, data), ls in zip(scenarios.items(), LINESTYLES):
-        js = np.fromiter(data.keys(), dtype=float)
-        sorted_js = np.sort(js)
-        sorted_js_indices = np.argsort(js)
+        nparticles = np.fromiter(data.keys(), dtype=float)
+        sorted_nparticles = np.sort(nparticles)
+        sorted_js_indices = np.argsort(nparticles)
 
         ptrack = np.array([js["mean_ptrack"] for js in data.values()]) * 100.0
         final_pos_error = np.array(
@@ -87,7 +86,7 @@ def plot():
         print(f"{name} Probability of Tracking: {ptrack[sorted_js_indices]}")
 
         ptrack_ax.plot(
-            sorted_js,
+            sorted_nparticles,
             ptrack[sorted_js_indices],
             ls,
             label=name,
@@ -103,9 +102,9 @@ def plot():
         #     ax.plot(js, rmsve[index], "*", label=name, markersize=MARKER_SIZE)
         #     ax.set_title(title)
 
-        rmspe_ax.set_yscale("log")
+        # rmspe_ax.set_yscale("log")
         rmspe_ax.plot(
-            sorted_js,
+            sorted_nparticles,
             rmspe[sorted_js_indices],
             ls,
             label=name,
@@ -113,9 +112,9 @@ def plot():
             markersize=MARKER_SIZE,
         )
 
-        rmsve_ax.set_yscale("log")
+        # rmsve_ax.set_yscale("log")
         rmsve_ax.plot(
-            sorted_js,
+            sorted_nparticles,
             rmsve[sorted_js_indices],
             ls,
             label=name,
@@ -123,9 +122,9 @@ def plot():
             markersize=MARKER_SIZE,
         )
 
-        rmscbe_ax.set_yscale("log")
+        # rmscbe_ax.set_yscale("log")
         rmscbe_ax.plot(
-            sorted_js,
+            sorted_nparticles,
             rmscbe[sorted_js_indices],
             ls,
             label=name,
@@ -133,9 +132,9 @@ def plot():
             markersize=MARKER_SIZE,
         )
 
-        rmscde_ax.set_yscale("log")
+        # rmscde_ax.set_yscale("log")
         rmscde_ax.plot(
-            sorted_js,
+            sorted_nparticles,
             rmscde[sorted_js_indices],
             ls,
             label=name,

@@ -26,14 +26,39 @@ IS_EMITTER_TYPE_TRUTH = True
 PROCESS_NOISE_SIGMA = 6
 DELAY_BIAS_SIGMA = 15
 DRIFT_BIAS_SIGMA = 3
-DELAY_BIAS_RESOLUTION = 0.1
-DRIFT_BIAS_RESOLUTION = 0.1
+RESOLUTION = 0.01
+NTOTAL = 8
+NLEO = 0
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
 CONFIG_PATH = PROJECT_PATH / "conf"
 DATA_PATH = PROJECT_PATH / "data"
 TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
+
+
+def select_emitters(ntotal: int, nleo: int, emitter_states: dict, observables: dict):
+    gps_emitters = [emitter for emitter in emitter_states if emitter.startswith("G")]
+    leo_emitters = [
+        emitter for emitter in emitter_states if emitter.startswith("ONEWEB")
+    ]
+
+    gps_emitters = gps_emitters[: (ntotal - nleo)]
+    leo_emitters = leo_emitters[:nleo]
+
+    emitters = gps_emitters + leo_emitters
+
+    epoch_emitters = {
+        emitter: value
+        for emitter, value in emitter_states.items()
+        if emitter in emitters
+    }
+
+    epoch_observables = {
+        emitter: value for emitter, value in observables.items() if emitter in emitters
+    }
+
+    return epoch_emitters, epoch_observables
 
 
 def setup_simulation(disable_progress: bool = False):
@@ -60,6 +85,7 @@ def simulate(
     conf: ns.SimulationConfiguration,
     meas_sim: ns.MeasurementSimulation,
     corr_sim: ns.CorrelatorSimulation,
+    resolution: float,
     disable_progress: bool = False,
 ):
     # measurement simulation
@@ -84,8 +110,8 @@ def simulate(
     conf = DPEConfiguration(
         is_grid=True,
         delay_bias_sigma=DELAY_BIAS_SIGMA,
-        delay_bias_resolution=DELAY_BIAS_RESOLUTION,
-        drift_bias_resolution=DRIFT_BIAS_RESOLUTION,
+        delay_bias_resolution=resolution,
+        drift_bias_resolution=resolution,
         drift_bias_sigma=DRIFT_BIAS_SIGMA,
         process_noise_sigma=PROCESS_NOISE_SIGMA,
         neff_percentage=50.0,
@@ -106,12 +132,20 @@ def simulate(
         desc="[eleventh-hour] simulating correlators",
         disable=disable_progress,
     ):
+
+        epoch_emitters, epoch_observables = select_emitters(
+            ntotal=NTOTAL,
+            nleo=NLEO,
+            emitter_states=emitter_states[epoch],
+            observables=observables,
+        )
+
         particle_pranges, particle_prange_rates = dpe.predict_particle_observables(
-            emitter_states=emitter_states[epoch]
+            emitter_states=epoch_emitters
         )
 
         corr_sim.compute_errors(
-            observables=observables,
+            observables=epoch_observables,
             est_pranges=particle_pranges,
             est_prange_rates=particle_prange_rates,
         )
@@ -123,10 +157,10 @@ def simulate(
 
         # logging
         est_pranges, est_prange_rates = dpe.predict_estimate_observables(
-            emitter_states=emitter_states[epoch]
+            emitter_states=epoch_emitters
         )
         corr_sim.compute_errors(
-            observables=observables,
+            observables=epoch_observables,
             est_pranges=est_pranges,
             est_prange_rates=est_prange_rates,
         )  # computes current estimates errors
@@ -160,7 +194,7 @@ def simulate(
         prange_rate_errors=corr_sim.prange_rate_errors,
     )
 
-    return results
+    return results, dpe.nparticles
 
 
 # private
@@ -182,13 +216,15 @@ def __generate_truth(
 
 if __name__ == "__main__":
     conf, meas_sim, corr_sim = setup_simulation()
-    results = simulate(conf=conf, meas_sim=meas_sim, corr_sim=corr_sim)
+    results, particles = simulate(
+        conf=conf, meas_sim=meas_sim, corr_sim=corr_sim, resolution=RESOLUTION
+    )
 
     now = datetime.now().strftime(format="%Y%m%d-%H%M%S")
     output_dir = (
         DATA_PATH
         / "figures"
-        / f"{now}_DPE_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
+        / f"{now}_DPE_Efficiency_eleventh-hour_{TRAJECTORY}_{conf.time.fsim}Hz"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -1,0 +1,22 @@
+time:
+  duration: 30.0 # [s]
+  fsim: 50 # [Hz]
+  year: 2023
+  month: 12
+  day: 4
+  second: 18
+
+constellations:
+  mask_angle: 10.0 # [deg]
+  emitters:
+    gps:
+      signal: gpsl1ca
+      js: 25.0
+      correlator_model: bpsk
+    oneweb:
+      signal: auburn
+      js: 0.0
+      correlator_model: bpsk
+
+errors:
+  rx_clock: "high_quality_tcxo"
