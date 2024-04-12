@@ -12,7 +12,7 @@ from eleventh_hour.navigators import create_padded_df
 # sim parameters
 NAVIGATOR = "dpe"
 NSIMS = 100
-JS = np.arange(0, 45, 5, dtype=float)
+JS = np.arange(0, 25, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
