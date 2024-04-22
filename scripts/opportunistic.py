@@ -1,5 +1,6 @@
 import numpy as np
 import navsim as ns
+import random
 
 from tqdm import tqdm
 from pathlib import Path
@@ -26,8 +27,8 @@ IS_EMITTER_TYPE_TRUTH = True
 PROCESS_NOISE_SIGMA = 6
 DELAY_BIAS_SIGMA = 15
 DRIFT_BIAS_SIGMA = 3
-DELAY_BIAS_RESOLUTION = 0.1
-DRIFT_BIAS_RESOLUTION = 0.1
+DELAY_BIAS_RESOLUTION = 0.075
+DRIFT_BIAS_RESOLUTION = 0.075
 NPERIODS_PER_DOPPLER = 25
 
 # path
@@ -131,20 +132,16 @@ def simulate(
         dpe.dpe_update(inphase=corr.inphase, quadrature=corr.quadrature)
 
         if epoch % NPERIODS_PER_DOPPLER == 0:
-            leo_obs = dict(sorted(leo_sim_observables[epoch].items()))
-            leo_psr_rate = [
-                observables.pseudorange_rate + sim_rx_states.clock_drift[epoch]
-                for observables in leo_obs.values()
-            ]
+            leo_id, leo_obs = random.choice(list(leo_sim_observables[epoch].items()))
+            leo_emitter = {leo_id: leo_sim_emitter_states.ephemeris[epoch][leo_id]}
 
-            leo_emitter = dict(sorted(leo_emitter_states[epoch].items()))
             _, particle_prange_rates = dpe.predict_particle_observables(
                 emitter_states=leo_emitter
             )
             dpe.doppler_update(
-                meas_prange_rates=leo_psr_rate,
-                est_prange_rates=particle_prange_rates,
-                covariance=0.1,
+                meas_prange_rates=leo_obs.pseudorange_rate,
+                est_prange_rates=particle_prange_rates.flatten(),
+                covariance=1e-6,
             )
 
         dpe.estimate_state()
