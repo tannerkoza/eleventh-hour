@@ -1,5 +1,5 @@
 time:
-  duration: 300.0 # [s]
+  duration: 0.02 # [s]
   fsim: 50 # [Hz]
   year: 2023
   month: 12
@@ -13,9 +13,10 @@ constellations:
       signal: gpsl1ca
       js: 0.0
       correlator_model: bpsk
-    iridium-next:
-      signal: gpsl1ca
-      js: 0.0
-      correlator_model: bpsk
-errors:
-  rx_clock: "ocxo"
+    # starlink:
+    #   signal: auburn
+    #   js: 0.0
+    #   correlator_model: bpsk
+
+# errors:
+#   rx_clock: "high_quality_tcxo"

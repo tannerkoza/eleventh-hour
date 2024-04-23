@@ -191,7 +191,7 @@ class OpportunisticDirectPositioning:
     ):
         residual = meas_prange_rates - est_prange_rates
         var = np.var(est_prange_rates)
-        self.lh *= np.exp(-0.5 * residual**2 * (1 / var))
+        self.lh *= np.exp(-0.5 * residual**2 * (1 / covariance))
 
     def estimate_state(self):
         weights = self.weights * self.lh

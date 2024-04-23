@@ -141,7 +141,7 @@ def simulate(
             dpe.doppler_update(
                 meas_prange_rates=leo_obs.pseudorange_rate,
                 est_prange_rates=particle_prange_rates.flatten(),
-                covariance=1e-6,
+                covariance=1e-2,
             )
 
         dpe.estimate_state()
