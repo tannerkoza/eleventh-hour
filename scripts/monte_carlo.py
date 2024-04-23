@@ -132,7 +132,9 @@ def process_mc_results(time: np.ndarray, mc_results: dict):
         if "error" in key:
             new_key = f"rms_{key}"
             value = np.array(value)
-            rms_value = np.sqrt(np.mean(value**2, axis=-1))
+            rms_value = np.sqrt(
+                np.mean(value[:, 10:] ** 2, axis=-1)
+            )  # CURRENTLY WAITS TILL PF CONVERGENCE
             results[new_key] = rms_value
 
             new_key = f"final_{key}"

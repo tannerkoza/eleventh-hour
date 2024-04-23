@@ -28,7 +28,7 @@ DELAY_BIAS_SIGMA = 15
 DRIFT_BIAS_SIGMA = 3
 RESOLUTION = 0.01
 NTOTAL = 8
-NLEO = 0
+NLEO = 4
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]

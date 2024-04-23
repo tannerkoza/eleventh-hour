@@ -95,7 +95,7 @@ def __compute_multiple_coordinate_extent(lons, lats):
     pairs = [(lon, lat) for lon, lat in zip(lons, lats)]
     bounding_box = BoundingBox(pairs)
 
-    buffer = 0.15 * bounding_box.height  # add 15% buffer
+    buffer = 0.5 * bounding_box.height  # add 15% buffer
 
     min_y = bounding_box.min_point.y - buffer
     max_y = bounding_box.max_point.y + buffer
@@ -533,17 +533,33 @@ def pf_animation(
     weights: np.ndarray,
     output_dir: Path,
 ):
+    time = time[::25]
+    truth = truth[:, ::25]
+    rx = rx[:, ::25]
+    particles = particles[:, ::25, :]
+
+    time = np.round(time, decimals=2)
     fig, ax = plt.subplots()
     nframes = truth[0].size
-    interval = np.mean(np.diff(time)) * 1000
+    interval = 50
     ax.xaxis.set_major_formatter(FormatStrFormatter("%.1f"))
     ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
 
-    t = ax.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
-    r = ax.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
+    t = ax.plot(truth[0], truth[1], "*", c="#00A9C1", label="truth")[0]
+    r = ax.plot(rx[0], rx[1], "*", c="#DB0000", label="rx")[0]
 
     p = ax.scatter(
-        particles[0, 0], particles[1, 0], c="darkblue", s=10, label="particles"
+        particles[0, 0], particles[1, 0], c="#5000DA", s=10, label="particles"
+    )
+
+    time_label = ax.text(
+        0,
+        1,
+        f"Time: {time[0]}s",
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=16,
     )
 
     ax.set_xlabel("East [m]")
@@ -578,16 +594,18 @@ def pf_animation(
     )
 
     pz = axins.scatter(
-        particles[0, 0], particles[1, 0], c="darkblue", s=5, label="particles"
+        particles[0, 0], particles[1, 0], c="#5000DA", s=5, label="particles"
     )
-    rz = axins.plot(rx[0], rx[1], "*", c="fuchsia", label="rx")[0]
-    tz = axins.plot(truth[0], truth[1], "*", c="lime", label="truth")[0]
+    rz = axins.plot(rx[0], rx[1], "*", c="#DB0000", label="rx")[0]
+    tz = axins.plot(truth[0], truth[1], "*", c="#00A9C1", label="truth")[0]
 
     ax.indicate_inset_zoom(axins, edgecolor="black")
     ax.axis("equal")
     axins.axis("equal")
     ax.grid(lw=0.5)
     ax.legend(loc="upper right")
+
+    fig.tight_layout()
 
     def update(frame):
         for patch in ax.patches:
@@ -604,6 +622,9 @@ def pf_animation(
         p.set_alpha(alphas)
         r.set_data([rx[0, :frame]], [rx[1, :frame]])
         t.set_data([truth[0, :frame]], [truth[1, :frame]])
+
+        secs = f"Time: {time[frame]}s"
+        time_label.set_text(secs)
 
         x_half_range = np.abs(peast.max() - peast.min()) / 2
         y_half_range = np.abs(pnorth.max() - pnorth.min()) / 2
@@ -626,6 +647,8 @@ def pf_animation(
         ax.grid(lw=0.5)
 
         ax.indicate_inset_zoom(axins, edgecolor="black")
+
+        fig.tight_layout()
 
         return p
 

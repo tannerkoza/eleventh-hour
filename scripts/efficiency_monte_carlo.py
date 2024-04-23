@@ -10,7 +10,7 @@ from eleventh_hour.navigators import create_padded_df
 from efficiency import NTOTAL, NLEO
 
 # sim parameters
-NSIMS = 100
+NSIMS = 200
 RESOLUTION = np.arange(0.075, 0.005, -0.005, dtype=float)
 DISABLE_PROGRESS = True
 # path

@@ -16,7 +16,7 @@ LINEWIDTH = 2
 CN0_AXIS = "Particles [dB]"
 COLORS = ["#D4586D", "#8CBCE8", "#73C283", "#D18ED2"]
 CMAP = LinearSegmentedColormap.from_list("tk", COLORS)
-LINESTYLES = ["-d", "-*", "-o", "->"]
+LINESTYLES = ["-d", "-d", "-d", "-d"]
 # plt.rcParams["figure.figsize"] = (8, 6)
 
 # path creation

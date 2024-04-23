@@ -177,9 +177,13 @@ class DirectPositioning:
             sys_inphase = inphase.T[sys_indices]
             sys_quadrature = quadrature.T[sys_indices]
 
-            ipower = np.sum(sys_inphase, axis=0) ** 2
-            qpower = np.sum(sys_quadrature, axis=0) ** 2
-            sys_power = ipower + qpower
+            ipower = np.sum(sys_inphase, axis=0)
+            qpower = np.sum(sys_quadrature, axis=0)
+            sys_power = np.abs(ipower + 1j * qpower) ** 2  # coherent
+
+            # sys_power = np.sum(
+            #     np.abs(sys_inphase + 1j * sys_quadrature) ** 2, axis=0
+            # )  # non-coherent
 
             sys_powers *= sys_power
 

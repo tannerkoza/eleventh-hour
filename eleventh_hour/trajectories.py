@@ -28,10 +28,6 @@ def prepare_trajectories(file_path: str | Path, fsim: float):
     rx_pos = cs(sim_time)
     rx_vel = cs(sim_time, 1)
 
-    max_speed = np.max(np.linalg.norm(rx_vel, axis=1))
-
-    print(f"Max Speed: {max_speed}")
-
     return rx_pos, rx_vel
 
 

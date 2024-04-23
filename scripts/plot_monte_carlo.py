@@ -8,22 +8,22 @@ from matplotlib.colors import LinearSegmentedColormap
 from pathlib import Path
 
 # user-defined variables
-MC_DIR_NAME = "japan/dynamic"
-RE_EXPR = "vp|dpe|gps|iridium|orbcomm"
+MC_DIR_NAME = "japan/static"
+RE_EXPR = "vp|dpe|op|gps|iridium|orbcomm"
 TITLES = ["East", "North", "Up"]
-CONTEXT = "paper"
+CONTEXT = "talk"
 MARKER_SIZE = 8
 LINEWIDTH = 2
 CN0_AXIS = "GPS $C/N_{0}$ Attenuation [dB]"
-COLORS = ["#D4586D", "#8CBCE8", "#73C283", "#D18ED2"]
+COLORS = ["#D4586D", "#D18ED2", "#73C283", "#8CBCE8"]
 CMAP = LinearSegmentedColormap.from_list("tk", COLORS)
-LINESTYLES = ["-d", "-*", "-o", "->"]
+LINESTYLES = ["-o", "-d", "--o", "--d"]
 # plt.rcParams["figure.figsize"] = (8, 6)
 
 # path creation
 DATA_PATH = Path(__file__).parents[1] / "data"
 MC_PATH = DATA_PATH / "monte_carlos" / MC_DIR_NAME
-FIGURES_PATH = DATA_PATH / "figures" / f"mc_{MC_DIR_NAME}"
+FIGURES_PATH = DATA_PATH / "figures" / f"mc_{MC_DIR_NAME}" / CONTEXT
 FIGURES_PATH.mkdir(parents=True, exist_ok=True)
 
 
