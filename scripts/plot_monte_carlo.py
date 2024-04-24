@@ -8,8 +8,8 @@ from matplotlib.colors import LinearSegmentedColormap
 from pathlib import Path
 
 # user-defined variables
-MC_DIR_NAME = "japan/static"
-RE_EXPR = "vp|dpe|op|gps|iridium|orbcomm"
+MC_DIR_NAME = "test"
+RE_EXPR = "vp|dpe|gps|iridium|odpe"
 TITLES = ["East", "North", "Up"]
 CONTEXT = "talk"
 MARKER_SIZE = 8

@@ -19,7 +19,7 @@ from eleventh_hour.plot import (
 )
 
 # sim parameters
-TRAJECTORY = "flight_australia_sdx_1s_onego"
+TRAJECTORY = "road_japan_sdx_01s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
@@ -30,6 +30,8 @@ DRIFT_BIAS_SIGMA = 3
 DELAY_BIAS_RESOLUTION = 0.075
 DRIFT_BIAS_RESOLUTION = 0.075
 NPERIODS_PER_DOPPLER = 25
+NEMITTERS = 1
+PRANGE_RATE_COV = 1e-3
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
@@ -132,19 +134,32 @@ def simulate(
         dpe.dpe_update(inphase=corr.inphase, quadrature=corr.quadrature)
 
         if epoch % NPERIODS_PER_DOPPLER == 0:
-            leo_id, leo_obs = random.choice(list(leo_sim_observables[epoch].items()))
-            leo_emitter = {leo_id: leo_sim_emitter_states.ephemeris[epoch][leo_id]}
+            try:
+                leo_emitters = random.sample(
+                    list(leo_sim_observables[epoch].items()), NEMITTERS
+                )
+            except:
+                leo_emitters = list(leo_sim_observables[epoch].items())
+
+            meas_prange_rates = (
+                np.array([emitter[1].pseudorange_rate for emitter in leo_emitters])
+                + sim_rx_states.clock_drift[epoch]
+            )
+            emitter_states = {
+                emitter[0]: leo_sim_emitter_states.ephemeris[epoch][emitter[0]]
+                for emitter in leo_emitters
+            }
 
             _, particle_prange_rates = dpe.predict_particle_observables(
-                emitter_states=leo_emitter
+                emitter_states=emitter_states
             )
             dpe.doppler_update(
-                meas_prange_rates=leo_obs.pseudorange_rate,
-                est_prange_rates=particle_prange_rates.flatten(),
-                covariance=1e-2,
+                meas_prange_rates=meas_prange_rates,
+                est_prange_rates=particle_prange_rates,
+                covariance=PRANGE_RATE_COV,
             )
 
-        dpe.estimate_state()
+        # dpe.estimate_state()
         dpe.time_update(T=conf.T)
 
         # logging
