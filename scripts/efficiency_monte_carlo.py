@@ -11,7 +11,7 @@ from efficiency import NTOTAL, NLEO
 
 # sim parameters
 NSIMS = 200
-RESOLUTION = np.arange(0.075, 0.005, -0.005, dtype=float)
+RESOLUTION = np.arange(0.075, 0.01, -0.005, dtype=float)
 DISABLE_PROGRESS = True
 # path
 PROJECT_PATH = Path(__file__).parents[1]

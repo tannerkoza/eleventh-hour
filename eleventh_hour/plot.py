@@ -27,7 +27,7 @@ from eleventh_hour.navigators import (
     CovarianceResults,
 )
 
-TYPES = [".svg", ".png"]
+TYPES = [".svg", ".pdf"]
 
 
 def save_figs(filename=Path, types=[".png"]):

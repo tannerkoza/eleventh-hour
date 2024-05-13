@@ -28,7 +28,7 @@ DELAY_BIAS_SIGMA = 15
 DRIFT_BIAS_SIGMA = 3
 RESOLUTION = 0.01
 NTOTAL = 8
-NLEO = 4
+NLEO = 1
 
 # path
 PROJECT_PATH = Path(__file__).parents[1]
@@ -40,7 +40,9 @@ TRAJECTORY_PATH = DATA_PATH / "trajectories" / TRAJECTORY
 def select_emitters(ntotal: int, nleo: int, emitter_states: dict, observables: dict):
     gps_emitters = [emitter for emitter in emitter_states if emitter.startswith("G")]
     leo_emitters = [
-        emitter for emitter in emitter_states if emitter.startswith("ONEWEB")
+        emitter
+        for emitter, states in emitter_states.items()
+        if emitter.startswith("ONEWEB") and states.el > 0.5235987756
     ]
 
     gps_emitters = gps_emitters[: (ntotal - nleo)]
