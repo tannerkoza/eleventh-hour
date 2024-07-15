@@ -23,16 +23,16 @@ from eleventh_hour.plot import (
     plot_covariances,
     plot_channel_errors,
     plot_correlators,
-    plot_cn0s, 
+    plot_cn0s,
 )
 
 # sim parameters
-TRAJECTORY = "road_las_vegas_sdx_01s_onego"
+TRAJECTORY = "road_japan_sdx_01s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
 # vdfll parameters
-PROCESS_NOISE_SIGMA = 1
+PROCESS_NOISE_SIGMA = 6
 CORRELATOR_BUFF_SIZE = 250
 TAP_SPACING = 0.5
 NORM_INNOVATION_THRESH = 2.5

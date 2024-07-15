@@ -6,18 +6,20 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from matplotlib.colors import LinearSegmentedColormap
 from pathlib import Path
+from eleventh_hour.plot import save_figs
 
 # user-defined variables
-MC_DIR_NAME = "test"
-RE_EXPR = "vp|dpe|gps|iridium|odpe"
+MC_DIR_NAME = "plots/australia/"
+RE_EXPR = "vp|dpe|odpe|gps|leo"
 TITLES = ["East", "North", "Up"]
-CONTEXT = "talk"
+CONTEXT = "notebook"
 MARKER_SIZE = 8
 LINEWIDTH = 2
 CN0_AXIS = "GPS $C/N_{0}$ Attenuation [dB]"
-COLORS = ["#D4586D", "#D18ED2", "#73C283", "#8CBCE8"]
+COLORS = ["#D4586D", "#FF964F", "#D18ED2", "#73C283", "#8CBCE8"]
 CMAP = LinearSegmentedColormap.from_list("tk", COLORS)
-LINESTYLES = ["-o", "-d", "--o", "--d"]
+LINESTYLES = ["-o", "-o", "-d", "--o", "--d"]
+TYPES = [".svg", ".svg"]
 # plt.rcParams["figure.figsize"] = (8, 6)
 
 # path creation
@@ -132,6 +134,7 @@ def plot():
             linewidth=LINEWIDTH,
             markersize=MARKER_SIZE,
         )
+        # rmscbe_ax.set_xticks([0, 5, 10, 15, 20])
 
         rmscde_ax.set_yscale("log")
         rmscde_ax.plot(
@@ -142,12 +145,14 @@ def plot():
             linewidth=LINEWIDTH,
             markersize=MARKER_SIZE,
         )
+        # rmscde_ax.set_xticks([0, 5, 10, 15, 20])
 
     ptrack_fig.supxlabel(CN0_AXIS)
     ptrack_fig.supylabel("Probability of Tracking [%]")
     ptrack_ax.legend()
     ptrack_ax.grid(lw=0.5)
     ptrack_fig.tight_layout()
+    # save_figs(filename=FIGURES_PATH / "ptrack", types=TYPES)
     ptrack_fig.savefig(fname=FIGURES_PATH / "ptrack.svg")
 
     rmspe_fig.supxlabel(CN0_AXIS)
@@ -156,6 +161,7 @@ def plot():
     rmspe_ax.legend(handles, labels)
     rmspe_ax.grid(lw=0.5)
     rmspe_fig.tight_layout()
+    # save_figs(filename=FIGURES_PATH / "rmspe", types=TYPES)
     rmspe_fig.savefig(fname=FIGURES_PATH / "rmspe.svg")
 
     rmsve_fig.supxlabel(CN0_AXIS)
@@ -164,6 +170,7 @@ def plot():
     rmsve_ax.legend(handles, labels)
     rmsve_ax.grid(lw=0.5)
     rmsve_fig.tight_layout()
+    # save_figs(filename=FIGURES_PATH / "rmsve", types=TYPES)
     rmsve_fig.savefig(fname=FIGURES_PATH / "rmsve.svg")
 
     rmscbe_fig.supxlabel(CN0_AXIS)
@@ -171,6 +178,7 @@ def plot():
     rmscbe_ax.legend()
     rmscbe_ax.grid(lw=0.5)
     rmscbe_fig.tight_layout()
+    # save_figs(filename=FIGURES_PATH / "rmscbe", types=TYPES)
     rmscbe_fig.savefig(fname=FIGURES_PATH / "rmscbe.svg")
 
     rmscde_fig.supxlabel(CN0_AXIS)
@@ -178,6 +186,7 @@ def plot():
     rmscde_ax.legend()
     rmscde_ax.grid(lw=0.5)
     rmscde_fig.tight_layout()
+    # save_figs(filename=FIGURES_PATH / "rmscde", types=TYPES)
     rmscde_fig.savefig(fname=FIGURES_PATH / "rmscde.svg")
 
     plt.show()

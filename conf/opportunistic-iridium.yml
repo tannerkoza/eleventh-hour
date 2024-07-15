@@ -9,10 +9,11 @@ time:
 constellations:
   mask_angle: 10.0 # [deg]
   emitters:
-    iridium-next:
+    orbcomm:
       signal: auburn
       js: 0.0
       correlator_model: bpsk
 
 errors:
   pseudorange_rate_awgn_sigma: True
+  rx_clock: "high_quality_tcxo"

@@ -12,7 +12,7 @@ from eleventh_hour.navigators import create_padded_df
 # sim parameters
 NAVIGATOR = "dpe"
 NSIMS = 100
-JS = np.arange(0, 25, 5, dtype=float)
+JS = np.arange(0, 45, 5, dtype=float)
 INTERFERED_CONSTELLATIONS = ["gps"]
 DISABLE_PROGRESS = True
 
@@ -133,7 +133,7 @@ def process_mc_results(time: np.ndarray, mc_results: dict):
             new_key = f"rms_{key}"
             value = np.array(value)
             rms_value = np.sqrt(
-                np.mean(value[:, 10:] ** 2, axis=-1)
+                np.mean(value**2, axis=-1)
             )  # CURRENTLY WAITS TILL PF CONVERGENCE
             results[new_key] = rms_value
 

@@ -18,7 +18,7 @@ from eleventh_hour.plot import (
 )
 
 # sim parameters
-TRAJECTORY = "road_japan_sdx_01s_onego"
+TRAJECTORY = "flight_australia_sdx_1s_onego"
 IS_STATIC = False
 IS_EMITTER_TYPE_TRUTH = True
 
